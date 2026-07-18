@@ -38,7 +38,7 @@
       kbd.className = "kbd";
       kbd.textContent = shortcutKbd.textContent;
       statusSub.append(kbd, " on any page");
-      toggleBtn.textContent = "Start dictation";
+      toggleBtn.textContent = "Start";
     }
   }
 
