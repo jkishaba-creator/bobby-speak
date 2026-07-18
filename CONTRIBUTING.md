@@ -82,6 +82,13 @@ Adding a speech engine means implementing one interface in `lib/engines.js`
 `onDone` / `onError` callbacks) and adding a row to the picker in
 `options.html`. You should not need to touch anything else.
 
+## Staying in the loop
+
+Repository activity — new issues, pull requests, releases — is mirrored into
+the project Discord. Releases and issues labelled **good first issue** or
+**help wanted** get called out there specifically, so Discord is the easiest
+place to find something to pick up.
+
 ## Reporting bugs
 
 Use the [bug report template](../../issues/new/choose). The single most useful
