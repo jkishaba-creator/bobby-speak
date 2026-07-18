@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AirFlow Dictation — Settings</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    body { padding: 40px 24px 72px; }
+    .wrap { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+    header .lite { color: var(--lite); font-weight: 600; }
+    .panel h2 { margin-bottom: 4px; }
+    .chipbox { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+    .chipbox input { width: 100%; }
+    .histlist { margin-top: 8px; display: flex; flex-direction: column; }
+    .hist { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .hist:last-child { border-bottom: none; }
+    .hist .t { flex: 1; font-size: 13px; }
+    .hist .when { font-family: var(--mono); font-size: 11px; color: var(--grey); white-space: nowrap; padding-top: 2px; }
+    .hist .cbtn { width: 30px; height: 30px; flex-shrink: 0; }
+    .empty { color: var(--lite); font-size: 13px; padding: 8px 0; }
+    .histhead { display: flex; align-items: center; justify-content: space-between; }
+    footer { text-align: center; color: var(--lite); font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Air <span style="color: var(--lite)">OS</span> — Dictation</h1>
+      <span class="lite">Settings</span>
+    </header>
+
+    <div class="panel">
+      <h2>General</h2>
+      <div class="row">
+        <div><div class="k">Language</div><div class="hint">Speech recognition language</div></div>
+        <select id="language">
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="es-ES">Español</option>
+          <option value="fr-FR">Français</option>
+          <option value="de-DE">Deutsch</option>
+          <option value="pt-BR">Português (BR)</option>
+          <option value="ja-JP">日本語</option>
+          <option value="ko-KR">한국어</option>
+          <option value="zh-CN">中文（简体）</option>
+          <option value="hi-IN">हिन्दी</option>
+        </select>
+      </div>
+      <div class="row">
+        <div><div class="k">Remove filler words</div><div class="hint">Drops “um”, “uh”, repeated words</div></div>
+        <button class="toggle" id="removeFillers" role="switch" aria-checked="true" aria-label="Remove filler words"></button>
+      </div>
+      <div class="row">
+        <div><div class="k">Spoken punctuation</div><div class="hint">Saying “period”, “comma”, “new line” types it</div></div>
+        <button class="toggle" id="spokenPunctuation" role="switch" aria-checked="true" aria-label="Spoken punctuation"></button>
+      </div>
+      <div class="row">
+        <div><div class="k">AI polish</div><div class="hint">On-device grammar pass (Chrome’s built-in model, when available)</div></div>
+        <button class="toggle" id="aiPolish" role="switch" aria-checked="true" aria-label="AI polish"></button>
+      </div>
+      <div class="row">
+        <div><div class="k">History limit</div><div class="hint">Transcriptions kept on this device</div></div>
+        <input type="number" id="historyLimit" min="0" max="500" step="5" style="width: 84px" />
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Custom words</h2>
+      <div class="hint" style="color: var(--grey); font-size: 12.5px;">
+        Names and jargon the engine gets wrong — near-misses are auto-corrected to these spellings.
+      </div>
+      <div class="chipbox">
+        <div class="chips" id="chips"></div>
+        <input type="text" id="chipInput" placeholder="Type a word and press Enter" maxlength="50" />
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Keyboard shortcut</h2>
+      <div class="row">
+        <div><div class="k">Toggle dictation</div><div class="hint">Works on any normal web page</div></div>
+        <span class="kbd" id="shortcutKbd">⌘⇧Space</span>
+      </div>
+      <div class="row">
+        <div><div class="k">Change it</div><div class="hint">Chrome manages extension shortcuts</div></div>
+        <button class="pillbtn" id="shortcutsBtn">Open shortcut settings</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="histhead">
+        <h2>History</h2>
+        <button class="pillbtn" id="clearBtn">Clear</button>
+      </div>
+      <div class="histlist" id="histlist"></div>
+    </div>
+
+    <footer>AirFlow Dictation 0.2.0 — all recognition state stays on this device or in your Chrome profile.</footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

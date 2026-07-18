@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AirFlow — Pop-out</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    html, body { height: 100%; }
+    body {
+      display: flex; flex-direction: column;
+      padding: 16px 16px 14px; gap: 12px;
+      min-width: 320px;
+    }
+    .top { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .top .lite { color: var(--lite); font-weight: 600; font-size: 12.5px; }
+
+    .hero { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+    .orbwrap { width: 96px; height: 96px; flex-shrink: 0; margin: 0; }
+    .orbwrap button.orbbtn {
+      position: absolute; inset: 6px; border-radius: 50%;
+      border: none; cursor: pointer; background: transparent; z-index: 2;
+    }
+    .orbwrap button.orbbtn:focus-visible { outline: 2px solid #8A8DA0; outline-offset: 3px; }
+    .orbwrap .orb { inset: 6px; }
+    .statusdot {
+      position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+      width: 8px; height: 8px; border-radius: 50%; background: var(--orange);
+      z-index: 3; opacity: 0; transition: opacity .2s ease;
+    }
+    body.listening .statusdot { opacity: 1; }
+    body.listening .orb .blob { animation-duration: 3s; }
+
+    .herotext { min-width: 0; }
+    .herotext .s1 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+    .herotext .s2 { font-size: 12px; color: var(--grey); margin-top: 2px; }
+    .wave { display: flex; align-items: flex-end; gap: 3px; height: 16px; margin-top: 8px; }
+    .wave i { display: block; width: 3px; height: 4px; border-radius: 2px; background: #8A8DA0; transition: height .1s ease; }
+    body.listening .wave i { background: var(--orange); }
+
+    .transcript {
+      flex: 1; display: flex; flex-direction: column; min-height: 0;
+      padding: 14px 14px 12px;
+    }
+    .transcript h2 { margin-bottom: 8px; flex-shrink: 0; }
+    textarea {
+      flex: 1; width: 100%; resize: none; border: none; background: transparent;
+      font-family: var(--sans); font-size: 14px; line-height: 1.55; color: var(--ink);
+      padding: 0; min-height: 0;
+    }
+    textarea:focus { outline: none; }
+    textarea::placeholder { color: var(--lite); }
+    .tentative { color: var(--grey); font-size: 13px; min-height: 18px; flex-shrink: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+    .clip { font-size: 12px; color: var(--grey); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .clip.ok { color: #1A7F37; font-weight: 650; }
+    .clip.err { color: #B42318; font-weight: 650; }
+    .foot .btns { display: flex; gap: 8px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">Air <span>OS</span></div>
+    <div class="lite">Pop-out — paste anywhere</div>
+  </div>
+
+  <div class="hero">
+    <div class="orbwrap">
+      <svg class="ring" viewBox="0 0 96 96" fill="none" aria-hidden="true">
+        <circle cx="48" cy="48" r="46" stroke="#A6A9B5" stroke-width="2.2"
+                stroke-linecap="round" stroke-dasharray="0.1 11.9" opacity=".75"/>
+      </svg>
+      <span class="statusdot"></span>
+      <div class="orb" aria-hidden="true">
+        <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+      </div>
+      <button class="orbbtn" id="orbBtn" aria-label="Start or stop dictation"></button>
+    </div>
+    <div class="herotext">
+      <div class="s1" id="statusTitle">Click the orb, then talk</div>
+      <div class="s2" id="statusSub">Your words are kept on the clipboard as you go</div>
+      <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </div>
+
+  <div class="panel transcript">
+    <h2>Transcript</h2>
+    <textarea id="text" placeholder="Speak, and cleaned-up text collects here — already copied, so just ⌘V into any app." spellcheck="true"></textarea>
+    <div class="tentative" id="tentative"></div>
+  </div>
+
+  <div class="foot">
+    <span class="clip" id="clip">Clipboard idle</span>
+    <span class="btns">
+      <button class="pillbtn" id="clearBtn">Clear</button>
+      <button class="pillbtn" id="copyBtn">Copy</button>
+      <button class="pillbtn dark" id="toggleBtn">Start</button>
+    </span>
+  </div>
+
+  <script src="lib/textCleanup.js"></script>
+  <script src="lib/grammarPolish.js"></script>
+  <script src="popout.js"></script>
+</body>
+</html>

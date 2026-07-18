@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AirFlow Dictation — Microphone</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    body { min-height: 100vh; display: grid; place-items: center; padding: 40px 20px; }
+    .card { max-width: 420px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .orbwrap { width: 170px; height: 170px; }
+    p { color: var(--grey); font-size: 14px; max-width: 40ch; }
+    .ok { color: #1A7F37; font-weight: 650; display: none; }
+    .fail { color: #B42318; font-weight: 650; display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">Air <span>OS</span> — Dictation</div>
+    <div class="orbwrap">
+      <svg class="ring" viewBox="0 0 170 170" fill="none" aria-hidden="true">
+        <circle cx="85" cy="85" r="82" stroke="#A6A9B5" stroke-width="2.6"
+                stroke-linecap="round" stroke-dasharray="0.1 12.8" opacity=".75"/>
+      </svg>
+      <div class="orb" aria-hidden="true">
+        <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+      </div>
+    </div>
+    <h1>One-time microphone access</h1>
+    <p>Dictation runs through your mic. Chrome asks once for this extension — after that, the shortcut works on any page.</p>
+    <button class="pillbtn dark" id="enableBtn">Enable microphone</button>
+    <div class="ok" id="ok">Done — you can close this tab and dictate anywhere.</div>
+    <div class="fail" id="fail">Blocked. Click the mic icon in the address bar to allow access, then try again.</div>
+  </div>
+  <script src="permission.js"></script>
+</body>
+</html>

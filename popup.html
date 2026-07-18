@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AirFlow Dictation</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    body { width: 320px; padding: 18px 18px 16px; }
+    .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .top .lite { color: var(--lite); font-weight: 600; font-size: 13px; }
+
+    .hero { padding: 8px 0 2px; }
+    .orbwrap { width: 190px; height: 190px; }
+    .orbwrap button.orbbtn {
+      position: absolute; inset: 10px; border-radius: 50%;
+      border: none; cursor: pointer; background: transparent;
+      z-index: 2;
+    }
+    .orbwrap button.orbbtn:focus-visible { outline: 2px solid #8A8DA0; outline-offset: 4px; }
+    .statusdot {
+      position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--orange); z-index: 3;
+      opacity: 0; transition: opacity .2s ease;
+    }
+    body.listening .statusdot { opacity: 1; }
+    body.listening .orb .blob { animation-duration: 3.5s; }
+
+    .status { text-align: center; margin-top: 12px; }
+    .status .s1 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+    .status .s2 { font-size: 12px; color: var(--grey); margin-top: 2px; }
+    .status .kbd { margin-top: 2px; }
+
+    .lastpanel { margin-top: 14px; padding: 14px 16px; }
+    .lastpanel h2 { margin-bottom: 6px; }
+    .lasttext {
+      font-size: 13px; color: var(--ink);
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+      overflow: hidden; min-height: 19px;
+    }
+    .lasttext.empty { color: var(--lite); }
+    .lastrow { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .lastrow .when { font-family: var(--mono); font-size: 11px; color: var(--grey); }
+
+    .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">Air <span>OS</span></div>
+    <div class="lite">Dictate</div>
+  </div>
+
+  <div class="hero">
+    <div class="orbwrap">
+      <svg class="ring" viewBox="0 0 190 190" fill="none" aria-hidden="true">
+        <circle cx="95" cy="95" r="92" stroke="#A6A9B5" stroke-width="2.6"
+                stroke-linecap="round" stroke-dasharray="0.1 12.85" opacity=".75"/>
+      </svg>
+      <span class="statusdot"></span>
+      <div class="orb" aria-hidden="true">
+        <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+      </div>
+      <button class="orbbtn" id="orbBtn" aria-label="Start or stop dictation"></button>
+    </div>
+    <div class="status">
+      <div class="s1" id="statusTitle">Click the orb to dictate</div>
+      <div class="s2" id="statusSub">or press <span class="kbd" id="shortcutKbd">⌘⇧Space</span> on any page</div>
+    </div>
+  </div>
+
+  <div class="panel lastpanel">
+    <h2>Last transcription</h2>
+    <div class="lasttext empty" id="lastText">Nothing yet — try dictating into any text field.</div>
+    <div class="lastrow">
+      <span class="when" id="lastWhen"></span>
+      <button class="cbtn" id="copyBtn" aria-label="Copy last transcription" title="Copy">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
+          <rect x="4.5" y="4.5" width="8" height="8" rx="2"/>
+          <path d="M9.5 4.5v-1a2 2 0 0 0-2-2h-5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1" transform="translate(1 1)"/>
+        </svg>
+        <span class="dot"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="foot">
+    <button class="pillbtn" id="optionsBtn">Settings</button>
+    <button class="pillbtn" id="popoutBtn" title="Dictate for other apps — keeps your clipboard loaded">Pop-out</button>
+    <button class="pillbtn dark" id="toggleBtn">Start</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
