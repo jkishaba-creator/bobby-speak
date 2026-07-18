@@ -4,8 +4,7 @@ name: Release stale claims
 # by people who meant well three months ago, and nobody else feels able to
 # touch them.
 #
-# Nudges at 10 days of silence, releases at 14. Any comment, or a linked PR,
-# resets the clock.
+# Nudges at 10 days of silence, releases at 14. Any comment resets the clock.
 
 on:
   schedule:
@@ -35,8 +34,7 @@ jobs:
             --json number,title,url,updatedAt,assignees,labels --limit 100 \
             > /tmp/claimed.json
 
-          count=$(jq length /tmp/claimed.json)
-          echo "Checking $count claimed issue(s)."
+          echo "Checking $(jq length /tmp/claimed.json) claimed issue(s)."
 
           post_discord() {
             [ -z "${WEBHOOK:-}" ] && return 0
@@ -57,7 +55,7 @@ jobs:
 
             [ -z "$who" ] && continue
 
-            updated_s=$(date -u -d "$updated" +%s 2>/dev/null || date -u -jf "%Y-%m-%dT%H:%M:%SZ" "$updated" +%s)
+            updated_s=$(date -u -d "$updated" +%s)
             days=$(( (now - updated_s) / 86400 ))
             echo "  #$number — @$who — $days day(s) quiet"
 
@@ -66,17 +64,19 @@ jobs:
                 --remove-assignee "$who" \
                 --remove-label "in progress" \
                 --remove-label "claim-nudged" || true
-              gh issue comment "$number" --repo "$REPO" --body \
-                "Releasing this one back to the pool — it's been quiet for $days days.
 
-No criticism at all, @$who; life happens and unclaiming automatically is just how we keep the board honest. If you're still on it, comment \`.take\` and it's yours again."
+              body=$(printf '%s\n\n%s\n' \
+                "Releasing this one back to the pool — it has been quiet for $days days." \
+                "No criticism at all, @$who; life happens, and unclaiming automatically is just how the board stays honest. If you are still on it, comment .take and it is yours again.")
+              gh issue comment "$number" --repo "$REPO" --body "$body"
               post_discord "🔓 #$number is open again after $days quiet days" "#$number · $title" "$url"
 
             elif [ "$days" -ge "$NUDGE_DAYS" ] && [ "$nudged" = "false" ]; then
               gh issue edit "$number" --repo "$REPO" --add-label "claim-nudged" || true
-              gh issue comment "$number" --repo "$REPO" --body \
-                "Hi @$who — just checking in, this has been quiet for $days days.
-
-Nothing needed if you're still working on it; a comment resets the clock. If you'd rather hand it off, \`.drop\` releases it with no hard feelings. Otherwise it frees up automatically in $(( RELEASE_DAYS - days )) days."
+              remaining=$(( RELEASE_DAYS - days ))
+              body=$(printf '%s\n\n%s\n' \
+                "Hi @$who — just checking in, this has been quiet for $days days." \
+                "Nothing needed if you are still working on it; any comment resets the clock. If you would rather hand it off, .drop releases it with no hard feelings. Otherwise it frees up automatically in $remaining days.")
+              gh issue comment "$number" --repo "$REPO" --body "$body"
             fi
           done

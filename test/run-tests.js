@@ -70,6 +70,55 @@ check("html entry points exist for every window", () => {
   }
 });
 
+// --------------------------------------------------------------- workflows
+console.log("\nworkflows");
+
+// A line of content indented less than its block scalar's base silently ends
+// the block and breaks the whole workflow parse — GitHub only tells you after
+// you push. This catches it locally.
+function lintBlockScalars(file) {
+  const problems = [];
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  let block = null;
+  lines.forEach((line, i) => {
+    const indent = line.search(/\S/);
+    if (block) {
+      if (indent === -1) return;
+      if (block.baseIndent === null) {
+        block.baseIndent = indent;
+        return;
+      }
+      if (indent >= block.baseIndent) return;
+      const looksLikeYaml = /^\s*(-\s|[\w"'.\-]+\s*:)/.test(line);
+      if (looksLikeYaml && indent <= block.keyIndent) {
+        block = null;
+        return;
+      }
+      problems.push(
+        "line " + (i + 1) + ": content at indent " + indent +
+        " is below the block scalar opened on line " + block.startLine +
+        " (base " + block.baseIndent + ") — this breaks the workflow parse"
+      );
+      block = null;
+      return;
+    }
+    if (/^\s*[\w".-]+:\s*[|>][+-]?\s*(#.*)?$/.test(line)) {
+      block = { keyIndent: indent, baseIndent: null, startLine: i + 1 };
+    }
+  });
+  return problems;
+}
+
+const workflowDir = path.join(root, ".github", "workflows");
+if (fs.existsSync(workflowDir)) {
+  for (const name of fs.readdirSync(workflowDir).filter((f) => f.endsWith(".yml"))) {
+    check(name + " block scalars are well-formed", () => {
+      const problems = lintBlockScalars(path.join(workflowDir, name));
+      assert(problems.length === 0, problems.join("; "));
+    });
+  }
+}
+
 // ------------------------------------------------------------------ syntax
 console.log("\nsyntax");
 

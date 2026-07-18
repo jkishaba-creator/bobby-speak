@@ -36,12 +36,12 @@ jobs:
           URL: ${{ github.event.issue.html_url }}
           ACTOR: ${{ github.event.comment.user.login }}
           BODY: ${{ github.event.comment.body }}
-          ASSIGNEES: ${{ toJSON(github.event.issue.assignees.*.login) }}
+          ASSIGNEE: ${{ join(github.event.issue.assignees.*.login, ',') }}
         run: |
           set -euo pipefail
 
-          # The command must be the first thing in the comment, so quoting
-          # someone else's ".take" doesn't trigger anything.
+          # The command must open the comment, so quoting someone else's
+          # ".take" doesn't trigger anything.
           first=$(printf '%s' "$BODY" | head -1 | tr -d '\r' | sed 's/^[[:space:]]*//')
           case "$first" in
             .take*|/claim*)   action=claim ;;
@@ -49,7 +49,7 @@ jobs:
             *) echo "No command at the start of the comment — ignoring."; exit 0 ;;
           esac
 
-          current=$(printf '%s' "$ASSIGNEES" | jq -r '.[]' | head -1 || true)
+          current=$(printf '%s' "$ASSIGNEE" | cut -d, -f1)
 
           post_discord() {
             [ -z "${WEBHOOK:-}" ] && return 0
@@ -63,8 +63,10 @@ jobs:
 
           if [ "$action" = "claim" ]; then
             if [ -n "$current" ] && [ "$current" != "$ACTOR" ]; then
-              gh issue comment "$NUMBER" --repo "$REPO" --body \
-                "@$ACTOR this one is already claimed by @$current. If they've gone quiet it frees up automatically after 14 days — or take a look at [what else is open](../../issues?q=is%3Aissue+is%3Aopen+no%3Aassignee)."
+              body=$(printf '%s\n\n%s\n' \
+                "@$ACTOR this one is already claimed by @$current." \
+                'If they have gone quiet it frees up automatically after 14 days. In the meantime there is plenty else open, or you could comment here and offer to pair on it.')
+              gh issue comment "$NUMBER" --repo "$REPO" --body "$body"
               echo "Already claimed by $current."
               exit 0
             fi
@@ -75,28 +77,26 @@ jobs:
             # GitHub silently drops assignees it won't accept, so verify.
             got=$(gh issue view "$NUMBER" --repo "$REPO" --json assignees -q '.assignees[].login' | tr '\n' ' ')
             if printf '%s' "$got" | grep -qw "$ACTOR"; then
-              note="Assigned to @$ACTOR."
+              echo "Assigned to $ACTOR."
             else
-              note="Marked as claimed by @$ACTOR (GitHub wouldn't accept the assignment, the label is the record)."
-              gh issue comment "$NUMBER" --repo "$REPO" --body \
-                "Claimed by @$ACTOR. 🛠️"
+              echo "Assignment refused by GitHub; the label is the record."
             fi
-            echo "$note"
 
-            gh issue comment "$NUMBER" --repo "$REPO" --body \
-              "Yours, @$ACTOR — thanks for picking it up.
-
-Open a draft PR whenever you like, even half-finished; it links back here and shows others where you've got to. If you change your mind, comment \`.drop\` and it goes back in the pool. Claims that go quiet for 14 days free up automatically."
+            body=$(printf '%s\n\n%s\n' \
+              "Yours, @$ACTOR — thanks for picking it up." \
+              'Open a draft PR whenever you like, even half-finished; it links back here and shows people where you have got to, which beats silence. If you change your mind, comment `.drop` and it goes back in the pool with no hard feelings. Claims that go quiet for 14 days free up automatically.')
+            gh issue comment "$NUMBER" --repo "$REPO" --body "$body"
 
             post_discord "🛠️ @$ACTOR is now working on #$NUMBER" "#$NUMBER · $TITLE" 951144
 
           else
             if [ -z "$current" ]; then
-              echo "Nothing to drop."; exit 0
+              echo "Nothing to drop."
+              exit 0
             fi
             gh issue edit "$NUMBER" --repo "$REPO" --remove-assignee "$current" || true
             gh issue edit "$NUMBER" --repo "$REPO" --remove-label "in progress" || true
             gh issue comment "$NUMBER" --repo "$REPO" --body \
-              "Released — this one's open again. Thanks for saying so, @$ACTOR; that's genuinely useful."
+              "Released — this one is open again. Thanks for saying so, @$ACTOR; that is genuinely useful to know."
             post_discord "🔓 #$NUMBER is free again — @$ACTOR stepped back" "#$NUMBER · $TITLE" 10197915
           fi
