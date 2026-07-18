@@ -4,6 +4,40 @@ This is a community project with a single maintainer. Contributions are very
 welcome — and every change is reviewed and merged by
 [@jkishaba-creator](https://github.com/jkishaba-creator) before it ships.
 
+## Claiming work, so we don't collide
+
+The worst outcome for everyone is two people building the same thing in
+parallel and one of them throwing an evening away. So there's one rule:
+
+**Before you start writing code, comment `.take` on the issue.**
+
+A bot assigns it to you, labels it **in progress**, and posts to Discord so
+everyone can see it's taken. That's the whole protocol.
+
+| You want to | Comment | What happens |
+|---|---|---|
+| Start work on an issue | `.take` | Assigned to you, announced in Discord |
+| Hand it back | `.drop` | Unassigned, announced as free again |
+
+A few things worth knowing:
+
+- **If an issue is already assigned, it's taken.** The bot will tell you so
+  rather than reassigning it. Pick something else, or comment to ask how it's
+  going — offering to help is always welcome.
+- **Claims expire.** If a claimed issue goes quiet for 10 days you'll get a
+  friendly nudge, and at 14 days it's released automatically. This isn't a
+  judgement, it's just how the board stays honest. Any comment resets the
+  clock, and you can always re-claim.
+- **Open a draft PR early.** Even a half-finished one. It links back to the
+  issue and shows people where you've got to, which is far better than
+  silence.
+- **Nothing is claimable that isn't an issue.** If you want to work on
+  something that doesn't have one, open one first — that's what creates the
+  thing other people can see.
+
+Every Monday a summary goes to Discord: what's being worked on, what's waiting
+on review, and what's free to pick up.
+
 ## Before you write code
 
 **Open an issue first for anything non-trivial.** A typo fix or an obvious bug
