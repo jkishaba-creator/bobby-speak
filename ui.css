@@ -1,4 +1,4 @@
-/* AirFlow Dictation — shared Air OS design tokens & components. */
+/* Bobby Speak — shared design tokens & components. */
 
 :root {
   --stage: #C6C9D4;
@@ -82,7 +82,7 @@ h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: u
 .pillbtn.dark { background: var(--ink); color: var(--screen); }
 .pillbtn:focus-visible { outline: 2px solid #8A8DA0; outline-offset: 2px; }
 
-/* Air OS toggle */
+/* toggle */
 .toggle {
   width: 40px; height: 23px; border-radius: 99px;
   background: var(--line); border: none; cursor: pointer;

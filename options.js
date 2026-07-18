@@ -52,7 +52,7 @@
       const data = await chrome.storage.local.get("settings");
       settings = Object.assign({}, DEFAULTS, data.settings || {});
     } else {
-      settings.customWords = ["Kubernetes", "AirFlow"]; // static preview
+      settings.customWords = ["Kubernetes", "PostgreSQL"]; // static preview
     }
     renderEngine();
     els.cfAccountId.value = settings.cfAccountId || "";

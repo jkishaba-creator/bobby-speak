@@ -1,4 +1,4 @@
-// AirFlow Dictation — service worker.
+// Bobby Speak — service worker.
 // Owns the dictation state machine and routes messages between the
 // offscreen document (mic + speech engine), the content script (overlay +
 // insertion), and the popup. Mirrors Handy's coordinator, toggle-mode only.

@@ -1,4 +1,4 @@
-// Content script: the Air OS overlay pill + text insertion at the cursor.
+// Content script: the overlay pill + text insertion at the cursor.
 // The overlay lives in a closed shadow root so page CSS can't touch it.
 
 (() => {
@@ -78,7 +78,7 @@
     return navigator.platform.toLowerCase().includes("mac") ? "⌘V" : "Ctrl+V";
   }
 
-  // ---------- overlay (Air OS pill) ----------
+  // ---------- overlay pill ----------
   let host = null;
   let ui = null;
 

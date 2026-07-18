@@ -1,4 +1,4 @@
-# AirFlow Dictation
+# Bobby Speak
 
 **Voice dictation for the browser — free, open source, and private.**
 Press a shortcut on any page, speak, and cleaned-up text lands at your cursor.
@@ -17,7 +17,7 @@ Paid dictation apps (Wispr Flow, Superwhisper, Willow) charge $8–15/month, and
 the open-source alternatives all fight over the desktop — where they need
 signed installers and accessibility permissions before you can say a word.
 
-AirFlow takes the other path: it lives in Chrome. One click to install, no
+Bobby Speak takes the other path: it lives in Chrome. One click to install, no
 permissions theater, and the browser hands us context those desktop apps have
 to fight for. Where it can't reach — native apps, canvas editors — the pop-out
 covers it with an always-loaded clipboard.
@@ -52,7 +52,7 @@ Not on the Web Store yet — load it unpacked:
 2. Open `chrome://extensions`.
 3. Turn on **Developer mode** (top right).
 4. Click **Load unpacked** and select the folder.
-5. Click the AirFlow icon → **Start** and allow the microphone once.
+5. Click the Bobby Speak icon → **Start** and allow the microphone once.
 
 ## Use
 
@@ -75,7 +75,7 @@ transcript is editable, and edits re-copy too.
 - Audio is captured in your browser and passed to Chrome's built-in speech
   service — the same engine behind web speech input.
 - Transcripts, settings, and history stay in your local Chrome profile.
-- The optional AI polish runs **on-device**. There is no AirFlow server, no
+- The optional AI polish runs **on-device**. There is no Bobby Speak server, no
   analytics, and no account.
 
 ## How it's built
@@ -95,7 +95,7 @@ Plain JavaScript, no framework and no build step — clone it and it runs.
 | `lib/textCleanup.js` | Grammar pipeline: fillers, spoken punctuation, capitalization, fuzzy custom words |
 | `lib/engines.js` | Engine layer: Chrome / CF Whisper / Deepgram Flux behind one interface |
 | `lib/grammarPolish.js` | Optional on-device AI polish (feature-detected) |
-| `ui.css` | Shared "Air OS" design tokens |
+| `ui.css` | Shared design tokens |
 
 ### Speech engines
 
