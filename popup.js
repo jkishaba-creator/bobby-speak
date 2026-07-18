@@ -20,6 +20,27 @@
   const isMac = navigator.platform.toLowerCase().includes("mac");
   shortcutKbd.textContent = isMac ? "⌘⇧Space" : "Ctrl+Shift+Space";
 
+  // Show the truth, not the assumption: Chrome silently refuses to bind a
+  // suggested shortcut when another extension already holds it. Read what is
+  // ACTUALLY bound, and warn loudly when the answer is "nothing".
+  const warnEl = document.getElementById("shortcutWarn");
+  document.getElementById("fixShortcutBtn").addEventListener("click", () => {
+    if (hasChrome) chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+  });
+  if (hasChrome && chrome.commands && chrome.commands.getAll) {
+    chrome.commands.getAll((commands) => {
+      const toggle = commands.find((c) => c.name === "toggle-dictation");
+      if (!toggle) return;
+      if (toggle.shortcut) {
+        shortcutKbd.textContent = toggle.shortcut;
+      } else {
+        warnEl.classList.add("show");
+      }
+    });
+  } else if (new URLSearchParams(location.search).has("warn")) {
+    warnEl.classList.add("show"); // static preview: popup.html?warn=1
+  }
+
   function renderState(state) {
     document.body.classList.toggle("listening", state === "listening");
     if (state === "listening") {

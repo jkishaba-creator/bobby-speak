@@ -106,8 +106,19 @@ function cleanup() {
   engine = null;
 }
 
+// Clipboard writes need a DOM; the service worker has none, so it asks us.
+function copyText(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  ta.remove();
+}
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || msg.target !== "offscreen") return;
   if (msg.type === "start") start(msg.settings || { language: msg.language });
   if (msg.type === "stop") stop();
+  if (msg.type === "copy") copyText(msg.text || "");
 });

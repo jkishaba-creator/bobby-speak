@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
 
 let state = STATE.IDLE;
 let targetTabId = null;
+let tabReachable = false;
 
 async function getSettings() {
   const { settings } = await chrome.storage.local.get("settings");
@@ -71,9 +72,40 @@ function sendToTab(msg) {
   });
 }
 
+async function pingTab(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "ping" });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Content scripts only auto-load into pages opened after install. For tabs
+// that predate us, inject on demand — otherwise the shortcut "does nothing".
+async function ensureContentScript(tabId) {
+  if (tabId == null) return false;
+  if (await pingTab(tabId)) return true;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  } catch (_) {
+    return false; // chrome:// page, Web Store, PDF viewer — not scriptable
+  }
+  return pingTab(tabId);
+}
+
+function flashBadge(text, ms) {
+  chrome.action.setBadgeText({ text }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: "#0E7568" }).catch(() => {});
+  setTimeout(() => {
+    chrome.action.setBadgeText({ text: "" }).catch(() => {});
+  }, ms);
+}
+
 async function startDictation() {
   if (state !== STATE.IDLE) return;
   targetTabId = await getActiveTabId();
+  tabReachable = await ensureContentScript(targetTabId);
   const settings = await getSettings();
   await ensureOffscreen();
   await setState(STATE.LISTENING);
@@ -113,7 +145,16 @@ async function finishWithTranscript(raw) {
     if (polished) text = polished;
   }
   if (text) {
-    sendToTab({ type: "insert-text", text });
+    if (tabReachable) {
+      sendToTab({ type: "insert-text", text });
+    } else {
+      // The page can't take insertion (chrome:// etc). Don't lose the words:
+      // copy them via the offscreen document and say so on the badge.
+      chrome.runtime
+        .sendMessage({ target: "offscreen", type: "copy", text })
+        .catch(() => {});
+      flashBadge("COPY", 4000);
+    }
     const { history = [] } = await chrome.storage.local.get("history");
     history.unshift({ text, ts: Date.now() });
     await chrome.storage.local.set({

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bobby Speak",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Voice dictation for the browser. Press the shortcut, speak, and text lands at your cursor — or use the pop-out to dictate for any app.",
   "permissions": ["offscreen", "storage", "activeTab", "scripting", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],

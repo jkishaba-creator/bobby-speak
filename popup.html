@@ -31,6 +31,16 @@
     .status .s2 { font-size: 12px; color: var(--grey); margin-top: 2px; }
     .status .kbd { margin-top: 2px; }
 
+    .shortcutwarn {
+      display: none; align-items: center; gap: 10px;
+      margin-top: 14px; padding: 11px 14px;
+      background: var(--screen); border-left: 3px solid var(--orange);
+      border-radius: 10px; font-size: 12.5px;
+    }
+    .shortcutwarn.show { display: flex; }
+    .shortcutwarn .msg { flex: 1; }
+    .shortcutwarn .msg b { display: block; font-size: 13px; }
+    .shortcutwarn .msg span { color: var(--grey); }
     .lastpanel { margin-top: 14px; padding: 14px 16px; }
     .lastpanel h2 { margin-bottom: 6px; }
     .lasttext {
@@ -68,6 +78,14 @@
       <div class="s1" id="statusTitle">Click the orb to dictate</div>
       <div class="s2" id="statusSub">or press <span class="kbd" id="shortcutKbd">⌘⇧Space</span> on any page</div>
     </div>
+  </div>
+
+  <div class="shortcutwarn" id="shortcutWarn">
+    <div class="msg">
+      <b>Keyboard shortcut isn't set</b>
+      <span>Chrome didn't bind it — likely another extension has it. One click to fix.</span>
+    </div>
+    <button class="pillbtn" id="fixShortcutBtn">Fix</button>
   </div>
 
   <div class="panel lastpanel">

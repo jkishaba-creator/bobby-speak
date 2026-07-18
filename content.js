@@ -4,6 +4,11 @@
 (() => {
   "use strict";
 
+  // The manifest injects this into new pages, and background.js injects it
+  // on demand into tabs that were open before install. Never run twice.
+  if (window.__bobbySpeakLoaded) return;
+  window.__bobbySpeakLoaded = true;
+
   // ---------- focus tracking ----------
   let lastEditable = null;
 
@@ -194,9 +199,12 @@
   }
 
   // ---------- message handling ----------
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg) return;
     switch (msg.type) {
+      case "ping":
+        sendResponse({ ok: true });
+        return;
       case "overlay-show":
         showOverlay();
         break;
