@@ -139,6 +139,18 @@ milestone and plugs into the same interface.
 - [ ] Push-to-talk inside the page
 - [ ] Chrome Web Store listing
 
+## Contributing
+
+This is a community project — issues and pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md), and open an issue or
+[Discussion](../../discussions) before building anything large.
+
+```bash
+node test/run-tests.js   # no dependencies, no build step
+```
+
+Every change is reviewed and merged by the maintainer.
+
 ## Credits
 
 The text-cleanup approach and recording state machine are JavaScript

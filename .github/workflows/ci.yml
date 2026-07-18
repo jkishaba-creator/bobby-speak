@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Contributor PRs get read-only access to the repo. Nothing here can write.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run test suite
+        run: node test/run-tests.js
+
+      - name: Check for stray secrets
+        run: |
+          if grep -rInE '(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})' \
+              --exclude-dir=.git --exclude-dir=node_modules .; then
+            echo "::error::Possible credential committed — remove it before merging."
+            exit 1
+          fi
+          echo "No credential patterns found."
+
+      - name: Check manifest version was bumped
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}"
+          base=$(git show "origin/${{ github.base_ref }}:manifest.json" | grep '"version"' | head -1)
+          head=$(grep '"version"' manifest.json | head -1)
+          if [ "$base" = "$head" ]; then
+            echo "::notice::manifest version unchanged ($head) — fine for docs/fixes, bump it for releases."
+          else
+            echo "Version changed: $base -> $head"
+          fi

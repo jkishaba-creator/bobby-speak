@@ -1,0 +1,99 @@
+# Contributing to Bobby Speak
+
+This is a community project with a single maintainer. Contributions are very
+welcome — and every change is reviewed and merged by
+[@jkishaba-creator](https://github.com/jkishaba-creator) before it ships.
+
+## Before you write code
+
+**Open an issue first for anything non-trivial.** A typo fix or an obvious bug
+can go straight to a PR. A new feature, a new engine, a refactor, or anything
+touching the audio pipeline should start as an issue or a
+[Discussion](../../discussions) so we can agree on the approach before you
+spend an evening on it. Nothing is more discouraging than a well-built PR that
+gets closed because it went the wrong direction.
+
+Look for issues labelled **good first issue** if you want somewhere to start.
+
+## Setting up
+
+There is no build step and there are no dependencies. You need Node (for the
+tests) and Chrome.
+
+```bash
+git clone https://github.com/jkishaba-creator/bobby-speak.git
+cd bobby-speak
+node test/run-tests.js     # should print "All N checks passed."
+```
+
+To load your working copy in Chrome: `chrome://extensions` → **Developer
+mode** → **Load unpacked** → pick the folder. After editing, hit the reload
+button on the extension card. Reload the web page too if you changed
+`content.js`.
+
+## Making a change
+
+1. **Fork** the repo and create a branch: `git checkout -b fix-flux-timeout`
+2. Make your change.
+3. **Run the tests**: `node test/run-tests.js`. Add cases for anything you fix
+   or add — `test/run-tests.js` is a plain script, just append a `check(...)`.
+4. **Actually try it in Chrome.** Load the extension and dictate something.
+   Tests catch broken logic; they cannot catch a broken microphone flow.
+5. Push and open a pull request against `main`.
+
+## What gets merged
+
+Things that make a PR easy to say yes to:
+
+- **It does one thing.** A PR that fixes a bug *and* reformats three files is
+  hard to review and slow to merge.
+- **The tests pass**, and new behavior has a test.
+- **It matches the surrounding style.** Plain JavaScript, no frameworks, no
+  build step, no new dependencies. If you think the project genuinely needs a
+  dependency, open an issue about it first — the zero-dependency property is
+  deliberate.
+- **It respects the privacy promise.** Nothing may send audio, transcripts, or
+  usage data anywhere except a speech provider the user explicitly configured.
+  No analytics, no telemetry, no phone-home. This is not negotiable.
+- **The UI stays consistent.** Use the tokens and components in `ui.css`
+  rather than introducing new colors or one-off styles.
+
+Things that will get a PR sent back:
+
+- Reformatting or restyling unrelated code.
+- New tracking, new remote endpoints, or new required permissions in
+  `manifest.json` without a clear justification in the PR description.
+- Large generated diffs, or code that was clearly not run.
+
+## Where things live
+
+| Area | Files |
+|---|---|
+| State machine, message routing | `background.js` |
+| Microphone, engines, level meter | `offscreen.js`, `lib/engines.js` |
+| Page overlay + text insertion | `content.js` |
+| Pop-out window | `popout.html`, `popout.js` |
+| Settings | `options.html`, `options.js` |
+| Grammar and cleanup rules | `lib/textCleanup.js` |
+| Design tokens and components | `ui.css` |
+
+Adding a speech engine means implementing one interface in `lib/engines.js`
+(`start(stream, audioCtx)` / `stop()`, plus the `onTentative` / `onSegment` /
+`onDone` / `onError` callbacks) and adding a row to the picker in
+`options.html`. You should not need to touch anything else.
+
+## Reporting bugs
+
+Use the [bug report template](../../issues/new/choose). The single most useful
+thing you can include for a dictation bug is **what you said and what you
+got** — plus which engine you were using and which site you were on.
+
+## Security
+
+Please do not open a public issue for a security problem. See
+[SECURITY.md](SECURITY.md).
+
+## Licensing
+
+By contributing, you agree that your contributions are licensed under the
+[MIT License](LICENSE), the same as the rest of the project.
