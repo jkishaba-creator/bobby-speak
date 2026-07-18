@@ -44,8 +44,15 @@ jobs:
             --json number,title,author,isDraft \
             -q '.[] | select(.isDraft|not) | "• [#\(.number)] \(.title[0:60]) — @\(.author.login)"' || true)
 
+          # Quiet week (nothing claimed, nothing in review): stay silent.
+          # A bot that posts emptiness every Monday is a bot people mute.
+          if [ -z "$in_flight" ] && [ -z "$in_review" ]; then
+            echo "Quiet week — skipping the standup post."
+            exit 0
+          fi
+
           [ -z "$in_flight" ] && in_flight="_Nothing claimed right now._"
-          [ -z "$up_for_grabs" ] && up_for_grabs="_Nothing tagged for newcomers — worth adding some._"
+          [ -z "$up_for_grabs" ] && up_for_grabs="_Nothing free right now._"
           [ -z "$in_review" ] && in_review="_No open pull requests._"
 
           jq -n \

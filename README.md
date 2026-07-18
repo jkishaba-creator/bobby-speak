@@ -141,15 +141,15 @@ milestone and plugs into the same interface.
 
 ## Contributing
 
-This is a community project — issues and pull requests are welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md), and open an issue or
-[Discussion](../../discussions) before building anything large.
+Community project, contributions welcome. Three steps:
 
-```bash
-node test/run-tests.js   # no dependencies, no build step
-```
+1. Comment **`.take`** on an [issue](../../issues) so we don't double up.
+2. Make your change and run `node test/run-tests.js` (no dependencies, no build).
+3. Open a PR — one thing at a time.
 
-Every change is reviewed and merged by the maintainer.
+Details in [CONTRIBUTING.md](CONTRIBUTING.md). Ideas go in
+[Discussions](../../discussions); everything is announced in the project
+Discord. Every change is reviewed and merged by the maintainer.
 
 ## Credits
 

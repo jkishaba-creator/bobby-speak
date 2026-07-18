@@ -2,17 +2,11 @@ name: Bug report
 description: Something doesn't work the way it should
 labels: ["bug"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for reporting. For dictation bugs, **what you said and what you got**
-        is the single most useful thing you can include.
-
   - type: textarea
     id: what-happened
     attributes:
       label: What happened
-      description: What did you do, and what did the extension do?
+      description: For dictation bugs, "what you said and what you got" is the most useful thing you can give us.
       placeholder: |
         I said: "meet me tomorrow comma maybe at noon"
         I got:  "meet me tomorrow maybe at noon"
@@ -23,49 +17,23 @@ body:
   - type: dropdown
     id: engine
     attributes:
-      label: Which speech engine
+      label: Speech engine
       options:
         - Chrome built-in (default)
-        - Whisper large-v3-turbo (Cloudflare)
+        - Whisper (Cloudflare)
         - Deepgram Flux (Cloudflare)
         - Not sure
     validations:
       required: true
 
-  - type: dropdown
-    id: surface
-    attributes:
-      label: Where were you dictating
-      options:
-        - Into a web page
-        - In the pop-out window
-        - Both
-    validations:
-      required: true
-
   - type: input
-    id: site
+    id: where
     attributes:
-      label: Which site (if it was a web page)
-      placeholder: mail.google.com
-
-  - type: input
-    id: version
-    attributes:
-      label: Extension version
-      description: Shown at the bottom of the Settings page
-      placeholder: "0.3.0"
-
-  - type: input
-    id: chrome
-    attributes:
-      label: Chrome version and OS
-      placeholder: "Chrome 138, macOS 15"
+      label: Where were you dictating?
+      placeholder: "gmail.com · notion.so · the pop-out window"
 
   - type: textarea
-    id: console
+    id: extra
     attributes:
-      label: Console errors (optional)
-      description: |
-        `chrome://extensions` → **Service worker** under Bobby Speak, and the page console (⌥⌘J) if it's an insertion bug.
-      render: text
+      label: Anything else
+      description: "Optional: extension version (bottom of Settings), Chrome version, console errors."

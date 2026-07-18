@@ -4,6 +4,16 @@ This is a community project with a single maintainer. Contributions are very
 welcome — and every change is reviewed and merged by
 [@jkishaba-creator](https://github.com/jkishaba-creator) before it ships.
 
+## The short version
+
+That's genuinely all you need. Everything below is detail for when you want it.
+
+1. Pick an [open issue](../../issues) (or open one) and comment **`.take`** so
+   nobody doubles up on it.
+2. Fork, make your change, run **`node test/run-tests.js`**, and actually try
+   it in Chrome.
+3. Open a PR. Keep it to one thing, no new dependencies.
+
 ## Claiming work, so we don't collide
 
 The worst outcome for everyone is two people building the same thing in

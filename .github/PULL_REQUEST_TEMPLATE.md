@@ -1,24 +1,12 @@
-## What this changes
+## What & why
 
-<!-- One or two sentences. What is different after this PR? -->
+<!-- A sentence or two. Link the issue if there is one: "Fixes #12" -->
 
-## Why
+## How you tested it
 
-<!-- Link the issue if there is one: "Fixes #12" -->
+<!-- Say what you actually did in Chrome: which engine, what you said, what appeared. -->
 
-## How I tested it
-
-<!-- Tests alone are not enough for this project — say what you actually did
-     in Chrome. Which engine, which site, what did you say, what appeared? -->
+---
 
 - [ ] `node test/run-tests.js` passes
-- [ ] Loaded the extension in Chrome and dictated with it
-- [ ] Tested the pop-out, if this touches it
-
-## Checklist
-
-- [ ] This PR does one thing
-- [ ] No new dependencies and no build step
-- [ ] No new analytics, telemetry, or remote endpoints
-- [ ] No new `manifest.json` permissions (or the reason is explained above)
-- [ ] New behavior has a test in `test/run-tests.js`
+- [ ] I loaded it in Chrome and dictated with it
