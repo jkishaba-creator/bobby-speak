@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AirFlow Dictation",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Voice dictation for the browser, in the Air OS design language. Press the shortcut, speak, and text lands at your cursor.",
   "permissions": ["offscreen", "storage", "activeTab", "scripting", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],

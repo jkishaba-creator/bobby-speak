@@ -8,7 +8,11 @@
     typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id;
 
   const DEFAULTS = {
+    engine: "chrome",
     language: "en-US",
+    cfAccountId: "",
+    cfApiToken: "",
+    cfGateway: "",
     removeFillers: true,
     spokenPunctuation: true,
     aiPolish: true,
@@ -17,6 +21,14 @@
   };
 
   const els = {
+    engrows: Array.from(document.querySelectorAll(".engrow")),
+    cfCreds: document.getElementById("cfCreds"),
+    gatewayRow: document.getElementById("gatewayRow"),
+    cfAccountId: document.getElementById("cfAccountId"),
+    cfApiToken: document.getElementById("cfApiToken"),
+    cfGateway: document.getElementById("cfGateway"),
+    testBtn: document.getElementById("testBtn"),
+    testStatus: document.getElementById("testStatus"),
     language: document.getElementById("language"),
     removeFillers: document.getElementById("removeFillers"),
     spokenPunctuation: document.getElementById("spokenPunctuation"),
@@ -42,6 +54,10 @@
     } else {
       settings.customWords = ["Kubernetes", "AirFlow"]; // static preview
     }
+    renderEngine();
+    els.cfAccountId.value = settings.cfAccountId || "";
+    els.cfApiToken.value = settings.cfApiToken || "";
+    els.cfGateway.value = settings.cfGateway || "";
     els.language.value = settings.language;
     els.removeFillers.setAttribute("aria-checked", String(settings.removeFillers));
     els.spokenPunctuation.setAttribute("aria-checked", String(settings.spokenPunctuation));
@@ -54,6 +70,68 @@
   async function save() {
     if (hasChrome) await chrome.storage.local.set({ settings });
   }
+
+  // ----- speech engine -----
+  function renderEngine() {
+    els.engrows.forEach((row) => {
+      row.setAttribute("aria-checked", String(row.dataset.engine === settings.engine));
+    });
+    els.cfCreds.hidden = settings.engine === "chrome";
+    els.gatewayRow.style.display = settings.engine === "cf-flux" ? "" : "none";
+  }
+
+  els.engrows.forEach((row) => {
+    const pick = () => {
+      settings.engine = row.dataset.engine;
+      renderEngine();
+      save();
+    };
+    row.addEventListener("click", pick);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+    });
+  });
+
+  function wireCredField(el, key) {
+    el.addEventListener("change", () => {
+      settings[key] = el.value.trim();
+      save();
+    });
+  }
+  wireCredField(els.cfAccountId, "cfAccountId");
+  wireCredField(els.cfApiToken, "cfApiToken");
+  wireCredField(els.cfGateway, "cfGateway");
+
+  els.testBtn.addEventListener("click", async () => {
+    const id = els.cfAccountId.value.trim();
+    const token = els.cfApiToken.value.trim();
+    els.testStatus.className = "teststatus";
+    if (!id || !token) {
+      els.testStatus.textContent = "Enter Account ID and token first";
+      els.testStatus.classList.add("err");
+      return;
+    }
+    els.testStatus.textContent = "Testing…";
+    try {
+      const resp = await fetch(
+        "https://api.cloudflare.com/client/v4/accounts/" +
+          encodeURIComponent(id) + "/ai/models/search?search=whisper",
+        { headers: { Authorization: "Bearer " + token } }
+      );
+      const json = await resp.json();
+      if (json.success) {
+        els.testStatus.textContent = "Connected ✓";
+        els.testStatus.classList.add("ok");
+      } else {
+        els.testStatus.textContent =
+          (json.errors && json.errors[0] && json.errors[0].message) || "Rejected";
+        els.testStatus.classList.add("err");
+      }
+    } catch (_) {
+      els.testStatus.textContent = "Network error";
+      els.testStatus.classList.add("err");
+    }
+  });
 
   // ----- general -----
   els.language.addEventListener("change", () => {

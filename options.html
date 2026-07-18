@@ -20,6 +20,27 @@
     .hist .cbtn { width: 30px; height: 30px; flex-shrink: 0; }
     .empty { color: var(--lite); font-size: 13px; padding: 8px 0; }
     .histhead { display: flex; align-items: center; justify-content: space-between; }
+    .engrow { cursor: pointer; }
+    .engrow .radio {
+      width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+      background: var(--face); border: 1.5px solid var(--line);
+      display: grid; place-items: center;
+    }
+    .engrow .radio::after {
+      content: ""; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--orange); opacity: 0; transform: scale(.4);
+      transition: opacity .15s ease, transform .15s ease;
+    }
+    .engrow[aria-checked="true"] .radio::after { opacity: 1; transform: scale(1); }
+    .engrow .badge {
+      font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--grey); background: var(--face);
+      border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; margin-left: 8px;
+    }
+    #cfCreds .row input { width: 240px; max-width: 50vw; }
+    .teststatus { font-size: 12.5px; font-weight: 650; }
+    .teststatus.ok { color: #1A7F37; }
+    .teststatus.err { color: #B42318; }
     footer { text-align: center; color: var(--lite); font-size: 12px; margin-top: 8px; }
   </style>
 </head>
@@ -29,6 +50,43 @@
       <h1>Air <span style="color: var(--lite)">OS</span> — Dictation</h1>
       <span class="lite">Settings</span>
     </header>
+
+    <div class="panel">
+      <h2>Speech engine</h2>
+      <div class="row engrow" data-engine="chrome" role="radio" aria-checked="true" tabindex="0">
+        <div><div class="k">Chrome built-in<span class="badge">free</span></div>
+          <div class="hint">Works instantly, no setup — Chrome's own speech service</div></div>
+        <span class="radio"></span>
+      </div>
+      <div class="row engrow" data-engine="cf-whisper" role="radio" aria-checked="false" tabindex="0">
+        <div><div class="k">Whisper large-v3-turbo<span class="badge">cloudflare</span></div>
+          <div class="hint">Best accuracy; transcribes when you stop (no live text). BYO Cloudflare account.</div></div>
+        <span class="radio"></span>
+      </div>
+      <div class="row engrow" data-engine="cf-flux" role="radio" aria-checked="false" tabindex="0">
+        <div><div class="k">Deepgram Flux<span class="badge">cloudflare · streaming</span></div>
+          <div class="hint">Live streaming text with smart end-of-phrase detection. Needs an AI Gateway.</div></div>
+        <span class="radio"></span>
+      </div>
+      <div id="cfCreds" hidden>
+        <div class="row">
+          <div><div class="k">Account ID</div><div class="hint">Cloudflare dash → right sidebar</div></div>
+          <input type="text" id="cfAccountId" placeholder="32-character hex id" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="row">
+          <div><div class="k">API token</div><div class="hint">Needs Workers AI permission — stored only in your browser</div></div>
+          <input type="password" id="cfApiToken" placeholder="token" autocomplete="off" />
+        </div>
+        <div class="row" id="gatewayRow">
+          <div><div class="k">AI Gateway name</div><div class="hint">Flux only — create one free: dash → AI → AI Gateway</div></div>
+          <input type="text" id="cfGateway" placeholder="my-gateway" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="row">
+          <div><div class="k">Connection</div><div class="teststatus" id="testStatus"></div></div>
+          <button class="pillbtn" id="testBtn">Test connection</button>
+        </div>
+      </div>
+    </div>
 
     <div class="panel">
       <h2>General</h2>
@@ -96,7 +154,7 @@
       <div class="histlist" id="histlist"></div>
     </div>
 
-    <footer>AirFlow Dictation 0.2.0 — all recognition state stays on this device or in your Chrome profile.</footer>
+    <footer>AirFlow Dictation 0.3.0 — all recognition state stays on this device or in your Chrome profile.</footer>
   </div>
 
   <script src="options.js"></script>

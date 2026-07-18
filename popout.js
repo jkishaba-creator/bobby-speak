@@ -1,10 +1,7 @@
 // Pop-out window: self-contained dictation surface for use with OTHER apps.
-// Runs mic + speech engine directly in this (visible, focused) window and
-// keeps the system clipboard preloaded with the cleaned transcript as you
-// speak — dictate here, ⌘V / Ctrl+V into anything, including native apps.
-//
-// The engine auto-restarts on the speech service's silence timeout so long
-// dictations survive pauses; only the orb/Stop ends a session.
+// Runs the mic + selected speech engine (lib/engines.js) directly in this
+// visible window and keeps the system clipboard preloaded with the cleaned
+// transcript as you speak — dictate here, ⌘V / Ctrl+V into anything.
 
 (() => {
   "use strict";
@@ -26,15 +23,19 @@
   };
 
   let settings = {
+    engine: "chrome",
     language: "en-US",
     removeFillers: true,
     spokenPunctuation: true,
     aiPolish: true,
     customWords: [],
+    cfAccountId: "",
+    cfApiToken: "",
+    cfGateway: "",
   };
 
   let listening = false;
-  let recognition = null;
+  let engine = null;
   let stream = null;
   let audioCtx = null;
   let rafId = null;
@@ -46,6 +47,16 @@
     if (!hasChrome) return;
     const data = await chrome.storage.local.get("settings");
     settings = Object.assign(settings, data.settings || {});
+  }
+
+  function engineCfg(autoRestart) {
+    return {
+      language: settings.language,
+      autoRestart,
+      accountId: settings.cfAccountId,
+      apiToken: settings.cfApiToken,
+      gateway: settings.cfGateway,
+    };
   }
 
   // ---------- cleanup pipeline ----------
@@ -123,56 +134,7 @@
     els.bars.forEach((bar) => (bar.style.height = "4px"));
   }
 
-  // ---------- speech engine ----------
-  function makeRecognition() {
-    const SR = self.SpeechRecognition || self.webkitSpeechRecognition;
-    if (!SR) {
-      setStatus("Speech engine unavailable", "This Chrome build has no speech service.");
-      return null;
-    }
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = settings.language || "en-US";
-
-    rec.onresult = (e) => {
-      let tentative = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) {
-          committed += r[0].transcript + " ";
-          renderTranscript(true); // clean + auto-copy on every finalized chunk
-        } else {
-          tentative += r[0].transcript;
-        }
-      }
-      els.tentative.textContent = tentative ? "… " + tentative : "";
-    };
-
-    rec.onerror = (e) => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        stopListening(false);
-        setStatus(
-          "Microphone blocked",
-          "Allow the mic for this window (icon in the address bar), then try again."
-        );
-      }
-      // "no-speech"/"aborted" are routine; onend handles restarts
-    };
-
-    // Speech services time out on silence; keep the session alive.
-    rec.onend = () => {
-      if (listening) {
-        try {
-          rec.start();
-        } catch (_) {
-          /* already starting */
-        }
-      }
-    };
-    return rec;
-  }
-
+  // ---------- session ----------
   async function startListening() {
     if (listening) return;
     await loadSettings();
@@ -187,38 +149,64 @@
     }
     audioCtx = new AudioContext();
     startLevelMeter();
-    recognition = makeRecognition();
-    if (!recognition) return;
+
+    engine = Engines.create(settings.engine, engineCfg(settings.engine === "chrome"), {
+      onTentative: (t) => {
+        els.tentative.textContent = t ? "… " + t : "";
+      },
+      onSegment: (segment) => {
+        committed += segment;
+        renderTranscript(true); // clean + auto-copy on every finalized phrase
+      },
+      onDone: (full) => handleDone(full),
+      onError: (message) => {
+        stopMedia();
+        listening = false;
+        document.body.classList.remove("listening");
+        els.toggleBtn.textContent = "Start";
+        if (message === "mic-denied") {
+          setStatus(
+            "Microphone blocked",
+            "Allow the mic for this window (icon in the address bar), then try again."
+          );
+        } else {
+          setStatus("Engine error", message);
+        }
+      },
+    });
+
     listening = true;
     document.body.classList.add("listening");
     els.toggleBtn.textContent = "Stop";
-    setStatus("Listening…", "Pause any time — the session survives silences");
-    recognition.start();
+    if (Engines.isBatch(settings.engine)) {
+      setStatus("Listening…", "Whisper transcribes when you stop (no live text)");
+    } else {
+      setStatus("Listening…", "Pause any time — the session survives silences");
+    }
+    engine.start(stream, audioCtx);
   }
 
-  async function stopListening(finalize = true) {
+  function stopListening() {
+    if (!listening || !engine) return;
     listening = false;
     document.body.classList.remove("listening");
     els.toggleBtn.textContent = "Start";
     els.tentative.textContent = "";
-    if (recognition) {
-      recognition.onend = null;
-      try {
-        recognition.stop();
-      } catch (_) {}
-      recognition = null;
+    if (Engines.isBatch(settings.engine)) {
+      setStatus("Transcribing…", "Sending audio to Whisper on your Cloudflare account");
+      setClip("Transcribing…");
     }
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-    resetBars();
-    if (audioCtx) audioCtx.close().catch(() => {});
-    audioCtx = null;
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    stream = null;
+    engine.stop(); // engine calls onDone (async for Whisper)
+  }
 
-    if (!finalize) return;
+  async function handleDone(full) {
+    stopMedia();
+    engine = null;
     setStatus("Click the orb, then talk", "Your words are kept on the clipboard as you go");
 
+    if (full != null && full.trim()) {
+      committed = full + " ";
+    }
     // Final pass: optional on-device AI polish, silently skipped if unavailable.
     let finalText = cleanNow(committed) || els.text.value;
     if (finalText && settings.aiPolish !== false && typeof GrammarPolish !== "undefined") {
@@ -229,7 +217,19 @@
     if (finalText) {
       els.text.value = finalText;
       copyToClipboard(finalText);
+    } else {
+      setClip("Clipboard idle");
     }
+  }
+
+  function stopMedia() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    resetBars();
+    if (audioCtx) audioCtx.close().catch(() => {});
+    audioCtx = null;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null;
   }
 
   function toggle() {

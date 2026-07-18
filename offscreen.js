@@ -1,11 +1,8 @@
-// Offscreen document: microphone capture + speech engine + level meter.
-//
-// Engine note: v0.1 uses Chrome's built-in SpeechRecognition (Web Speech API)
-// so the extension works with zero downloads. The seam for the local-Whisper
-// engine from the conversion plan is `startEngine`/`stopEngine` — swap those
-// for a transformers.js/WebGPU implementation without touching anything else.
+// Offscreen document: owns the microphone stream and the level meter, and
+// delegates recognition to the selected engine (lib/engines.js):
+// Chrome built-in, Cloudflare Whisper large-v3-turbo, or Deepgram Flux.
 
-let recognition = null;
+let engine = null;
 let stream = null;
 let audioCtx = null;
 let rafId = null;
@@ -43,65 +40,7 @@ function startLevelMeter() {
   rafId = requestAnimationFrame(loop);
 }
 
-function startEngine(language) {
-  const SR = self.SpeechRecognition || self.webkitSpeechRecognition;
-  if (!SR) {
-    send("engine-error", { message: "Speech engine unavailable in this Chrome." });
-    return;
-  }
-  recognition = new SR();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = language || "en-US";
-
-  recognition.onresult = (e) => {
-    let tentative = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const result = e.results[i];
-      if (result.isFinal) committed += result[0].transcript;
-      else tentative += result[0].transcript;
-    }
-    send("interim", { committed, tentative });
-  };
-
-  recognition.onerror = (e) => {
-    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-      active = false;
-      cleanup();
-      send("mic-denied");
-    } else if (e.error !== "no-speech" && e.error !== "aborted") {
-      send("engine-error", { message: "Speech error: " + e.error });
-    }
-  };
-
-  // Fires on natural silence timeout AND after stop(); single finish path.
-  recognition.onend = () => {
-    if (!active) return;
-    active = false;
-    cleanup();
-    send("final", { transcript: committed });
-  };
-
-  recognition.start();
-}
-
-function stopEngine() {
-  if (recognition) {
-    try {
-      recognition.stop(); // triggers onend -> final
-      return;
-    } catch (_) {
-      /* fall through to manual finish */
-    }
-  }
-  if (active) {
-    active = false;
-    cleanup();
-    send("final", { transcript: committed });
-  }
-}
-
-async function start(language) {
+async function start(settings) {
   if (active) return;
   committed = "";
   active = true;
@@ -114,7 +53,47 @@ async function start(language) {
   }
   audioCtx = new AudioContext();
   startLevelMeter();
-  startEngine(language);
+
+  engine = Engines.create(settings.engine, {
+    language: settings.language,
+    autoRestart: false,
+    accountId: settings.cfAccountId,
+    apiToken: settings.cfApiToken,
+    gateway: settings.cfGateway,
+  }, {
+    onTentative: (tentative) => send("interim", { committed, tentative }),
+    onSegment: (segment) => {
+      committed += segment;
+      send("interim", { committed, tentative: "" });
+    },
+    onDone: (full) => {
+      if (!active) return;
+      active = false;
+      cleanup();
+      send("final", { transcript: full != null ? full : committed });
+    },
+    onError: (message) => {
+      const wasActive = active;
+      active = false;
+      cleanup();
+      if (!wasActive) return;
+      if (message === "mic-denied") send("mic-denied");
+      else send("engine-error", { message });
+    },
+  });
+  engine.start(stream, audioCtx);
+}
+
+function stop() {
+  if (!engine) {
+    if (active) {
+      active = false;
+      cleanup();
+      send("final", { transcript: committed });
+    }
+    return;
+  }
+  engine.stop(); // engine calls onDone (possibly async, e.g. Whisper upload)
 }
 
 function cleanup() {
@@ -124,11 +103,11 @@ function cleanup() {
   audioCtx = null;
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null;
-  recognition = null;
+  engine = null;
 }
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || msg.target !== "offscreen") return;
-  if (msg.type === "start") start(msg.language);
-  if (msg.type === "stop") stopEngine();
+  if (msg.type === "start") start(msg.settings || { language: msg.language });
+  if (msg.type === "stop") stop();
 });

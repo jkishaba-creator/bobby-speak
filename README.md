@@ -35,6 +35,10 @@ covers it with an always-loaded clipboard.
   and stutters removed automatically.
 - **Custom vocabulary** — add names and jargon; near-misses are fuzzy-corrected
   to your spelling.
+- **Three speech engines, one selector** — Chrome's built-in engine (free,
+  zero setup), or bring your own Cloudflare account for
+  `@cf/openai/whisper-large-v3-turbo` (best accuracy, batch) and
+  `@cf/deepgram/flux` (live streaming with smart end-of-phrase detection).
 - **Optional on-device AI polish** — uses Chrome's built-in model (Gemini Nano)
   for a final grammar pass when available. Silently skipped when it isn't.
   Nothing is ever sent to a server.
@@ -89,15 +93,30 @@ Plain JavaScript, no framework and no build step — clone it and it runs.
 | `options.html/.js` | Settings — language, cleanup, custom words, history |
 | `permission.html/.js` | One-time microphone grant |
 | `lib/textCleanup.js` | Grammar pipeline: fillers, spoken punctuation, capitalization, fuzzy custom words |
+| `lib/engines.js` | Engine layer: Chrome / CF Whisper / Deepgram Flux behind one interface |
 | `lib/grammarPolish.js` | Optional on-device AI polish (feature-detected) |
 | `ui.css` | Shared "Air OS" design tokens |
 
-### Speech engine
+### Speech engines
 
-v0.2 uses Chrome's built-in speech engine (Web Speech API), so it works
-immediately with no model downloads. A local Whisper engine
-(transformers.js + WebGPU) plugs in at the `startEngine` / `stopEngine` seam
-in `offscreen.js` without touching anything else — that's the next milestone.
+All engines sit behind one interface (`lib/engines.js`) shared by the
+offscreen document and the pop-out:
+
+| Engine | Type | Setup |
+|---|---|---|
+| **Chrome built-in** (default) | streaming | none — works instantly |
+| **Whisper large-v3-turbo** (`@cf/openai/whisper-large-v3-turbo`) | batch REST — transcribes on stop | Cloudflare Account ID + API token with Workers AI permission |
+| **Deepgram Flux** (`@cf/deepgram/flux`) | streaming WebSocket with end-of-turn detection | the above + a free [AI Gateway](https://developers.cloudflare.com/ai-gateway/) name |
+
+Pick one in **Settings → Speech engine** and use **Test connection** to verify
+credentials. The Cloudflare engines run on *your* account (Workers AI has a
+free daily allowance, then usage pricing); the token is stored only in your
+local Chrome profile and requests go directly from your browser to Cloudflare.
+Flux connects through AI Gateway because browsers can't set WebSocket auth
+headers — the token rides the `cf-aig-authorization` subprotocol instead.
+
+A fully local Whisper engine (transformers.js + WebGPU) remains the next
+milestone and plugs into the same interface.
 
 ## Known limits
 
@@ -113,6 +132,7 @@ in `offscreen.js` without touching anything else — that's the next milestone.
 
 ## Roadmap
 
+- [x] Engine selector with Cloudflare Workers AI (Whisper large-v3-turbo, Deepgram Flux)
 - [ ] Local Whisper via transformers.js + WebGPU (fully offline recognition)
 - [ ] Per-site tone profiles — casual in Slack, formal in Gmail
 - [ ] Streaming text in the overlay as you speak

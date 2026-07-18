@@ -8,7 +8,11 @@ importScripts("lib/textCleanup.js", "lib/grammarPolish.js");
 const STATE = { IDLE: "idle", LISTENING: "listening", PROCESSING: "processing" };
 
 const DEFAULT_SETTINGS = {
+  engine: "chrome",
   language: "en-US",
+  cfAccountId: "",
+  cfApiToken: "",
+  cfGateway: "",
   removeFillers: true,
   spokenPunctuation: true,
   aiPolish: true,
@@ -75,7 +79,17 @@ async function startDictation() {
   await setState(STATE.LISTENING);
   sendToTab({ type: "overlay-show" });
   chrome.runtime
-    .sendMessage({ target: "offscreen", type: "start", language: settings.language })
+    .sendMessage({
+      target: "offscreen",
+      type: "start",
+      settings: {
+        engine: settings.engine,
+        language: settings.language,
+        cfAccountId: settings.cfAccountId,
+        cfApiToken: settings.cfApiToken,
+        cfGateway: settings.cfGateway,
+      },
+    })
     .catch(() => {});
 }
 
