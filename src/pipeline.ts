@@ -100,7 +100,7 @@ export function startDictation(settings: Settings): DictationSession {
     const tAsync = performance.now();
 
     // Local-only timing, visible in the offscreen document's console.
-    console.debug(
+    console.info(
       "[bobby-speak] finish timings — cleanup %sms, polish %sms (%s), total %sms",
       (tSync - t0).toFixed(0),
       (tAsync - tSync).toFixed(0),
@@ -162,7 +162,7 @@ export function startDictation(settings: Settings): DictationSession {
 
       const t0 = performance.now();
       await provider.stop(); // batch providers emit their final during stop()
-      console.debug(
+      console.info(
         "[bobby-speak] provider '%s' stop took %sms",
         provider.id,
         (performance.now() - t0).toFixed(0),
