@@ -1,14 +1,49 @@
-// Async stage: on-device AI grammar polish via Chrome's built-in model
-// (Gemini Nano / Prompt API). Finals only — too slow for the partial path.
+// Async stage: AI grammar/punctuation polish. Two interchangeable backends,
+// chosen by settings.polishProvider:
 //
-// Two hard rules, learned the hard way:
-//   1. It is NEVER allowed to block text insertion for long. The rule-based
-//      output is already good; polish is a bonus that must beat a deadline.
-//   2. The session is warmed up when dictation STARTS, not when it ends, so
-//      first-use model loading overlaps with the user talking instead of
-//      landing on the critical path.
+//   "chrome"     — Chrome's built-in Gemini Nano (free, on-device, but needs
+//                  a capable machine and a one-time model download)
+//   "cloudflare" — a Workers AI text model on the user's own account (works
+//                  on ANY machine; the same credentials as the CF ASR engines)
+//
+// This is where "you don't have to say comma" comes from: the model reads the
+// whole transcript and punctuates it by grammar. Finals only — too slow for
+// the partial path. Never blocks text insertion past its budget; on timeout
+// or failure the rule-based text is kept.
 
+import type { Settings } from "../../shared/types";
 import type { AsyncStage } from "../processor";
+
+const SYSTEM_PROMPT =
+  "You correct dictated text. Fix grammar, punctuation, capitalization, and " +
+  "sentence boundaries so it reads like clean writing. Keep the wording and " +
+  "meaning — do not add, remove, answer, or comment on the content. Reply " +
+  "with ONLY the corrected text, no preamble or quotes.";
+
+/** On-device polish must finish fast; it's competing with instant insertion. */
+export const POLISH_BUDGET_MS = 1200;
+/** Cloud polish is the primary quality path, so it gets a real network budget. */
+export const CLOUD_BUDGET_MS = 6000;
+
+// ---------------------------------------------------------------- shared
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
+// Guard against a model that ignores the instruction and rambles or truncates.
+export function acceptPolish(out: string, input: string): string | null {
+  let t = out.trim().replace(/^["“]|["”]$/g, "");
+  if (!t) return null;
+  if (t.length > input.length * 1.6 + 60) return null;
+  if (t.length < input.length * 0.5) return null;
+  return t;
+}
+
+// ---------------------------------------------------------------- Gemini Nano
 
 declare const LanguageModel:
   | {
@@ -17,16 +52,11 @@ declare const LanguageModel:
     }
   | undefined;
 
-// Chrome wants the output language declared on EVERY LanguageModel request —
-// availability probes included — or it logs a warning to the extension's
-// error panel.
+// Chrome wants the output language declared on EVERY LanguageModel request.
 const LANGUAGE_OPTS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
   expectedOutputs: [{ type: "text", languages: ["en"] }],
 };
-
-/** Polish must finish inside this budget or it is abandoned. */
-export const POLISH_BUDGET_MS = 1200;
 
 let sessionPromise: Promise<{ prompt(t: string): Promise<string> }> | null =
   null;
@@ -35,10 +65,6 @@ async function ensureSession() {
   if (typeof LanguageModel === "undefined") return null;
   try {
     const availability = await LanguageModel.availability(LANGUAGE_OPTS);
-    // "downloadable"/"downloading": create() attaches to (or kicks off) the
-    // one-time model download instead of silently never polishing. When
-    // Chrome requires user activation for the download, create() rejects,
-    // we return null, and a later attempt from a visible page succeeds.
     if (
       availability !== "available" &&
       availability !== "downloadable" &&
@@ -48,15 +74,7 @@ async function ensureSession() {
     }
     sessionPromise ??= LanguageModel.create({
       ...LANGUAGE_OPTS,
-      initialPrompts: [
-        {
-          role: "system",
-          content:
-            "You correct dictated text. Fix grammar, punctuation, and " +
-            "capitalization only. Keep the wording and meaning. Never add, " +
-            "remove, or answer content. Reply with the corrected text only.",
-        },
-      ],
+      initialPrompts: [{ role: "system", content: SYSTEM_PROMPT }],
     });
     return await sessionPromise;
   } catch {
@@ -65,39 +83,80 @@ async function ensureSession() {
   }
 }
 
-/** Start loading the model while the user is still speaking. Fire and forget. */
-export function warmUpGrammar(): void {
-  void ensureSession().catch(() => {});
+/** Warm the on-device model up while the user is still speaking. */
+export function warmUpGrammar(settings: Settings): void {
+  if (settings.aiPolish !== false && settings.polishProvider === "chrome") {
+    void ensureSession().catch(() => {});
+  }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ]);
+async function polishNano(text: string): Promise<string | null> {
+  const session = await withTimeout(ensureSession(), POLISH_BUDGET_MS);
+  if (!session) return null;
+  try {
+    const raw = await withTimeout(session.prompt(text), POLISH_BUDGET_MS);
+    if (raw === null) return null;
+    return acceptPolish(raw, text);
+  } catch {
+    return null;
+  }
 }
+
+// ------------------------------------------------------------- Cloudflare
+
+async function polishCloudflare(
+  text: string,
+  settings: Settings,
+): Promise<string | null> {
+  const { cfAccountId, cfApiToken } = settings;
+  if (!cfAccountId || !cfApiToken) return null;
+  const model = settings.cfTextModel || "@cf/meta/llama-3.1-8b-instruct";
+
+  // Model IDs contain "@" and "/" that Cloudflare wants literal in the path
+  // (same as the Whisper engine), so the id is appended raw.
+  const url =
+    "https://api.cloudflare.com/client/v4/accounts/" +
+    encodeURIComponent(cfAccountId) +
+    "/ai/run/" +
+    model;
+
+  const body = {
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: text },
+    ],
+    temperature: 0.2,
+  };
+
+  try {
+    const json = await withTimeout(
+      fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + cfApiToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }).then((r) => r.json()),
+      CLOUD_BUDGET_MS,
+    );
+    if (!json || !json.success) return null;
+    const out: string = json.result?.response ?? "";
+    return acceptPolish(out, text);
+  } catch {
+    return null;
+  }
+}
+
+// ------------------------------------------------------------- the stage
 
 export const grammarStage: AsyncStage = {
   id: "grammar-polish",
   appliesTo: (_kind, ctx) => ctx.settings.aiPolish !== false,
-  async run(text) {
+  async run(text, ctx) {
     if (!text.trim()) return null;
-
-    const session = await withTimeout(ensureSession(), POLISH_BUDGET_MS);
-    if (!session) return null; // unavailable, or still loading — skip it
-
-    try {
-      const raw = await withTimeout(session.prompt(text), POLISH_BUDGET_MS);
-      if (raw === null) return null; // over budget; keep the rule-based text
-      let out = raw.trim();
-      if (!out) return null;
-      out = out.replace(/^["“]|["”]$/g, "");
-      // Reject rambles: polish should stay close to the input's length.
-      if (out.length > text.length * 1.6 + 60) return null;
-      if (out.length < text.length * 0.5) return null;
-      return out;
-    } catch {
-      return null;
-    }
+    return ctx.settings.polishProvider === "cloudflare"
+      ? polishCloudflare(text, ctx.settings)
+      : polishNano(text);
   },
 };

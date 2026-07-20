@@ -92,6 +92,21 @@
   }
 
   const needsCloudflare = $derived(settings.engine !== "chrome");
+
+  // Smart-formatting picker: one control over the aiPolish master switch plus
+  // the polishProvider engine choice.
+  const polishChoice = $derived(
+    settings.aiPolish === false ? "off" : settings.polishProvider,
+  );
+  function setPolish(choice: string) {
+    if (choice === "off") {
+      settings.aiPolish = false;
+    } else {
+      settings.aiPolish = true;
+      settings.polishProvider = choice as "chrome" | "cloudflare";
+    }
+    persist();
+  }
 </script>
 
 <main class="min-h-screen bg-stage px-6 pb-16 pt-10 font-sans text-ink">
@@ -204,7 +219,6 @@
       {#each [
         { key: "removeFillers" as const, name: "Remove filler words", hint: "Drops “um”, “uh”, repeated words" },
         { key: "spokenPunctuation" as const, name: "Spoken punctuation", hint: "Saying “period”, “comma”, “new line” types it" },
-        { key: "aiPolish" as const, name: "AI polish", hint: "On-device grammar pass (Chrome’s built-in model, when available)" },
       ] as row (row.key)}
         <div class="flex items-center justify-between gap-3.5 border-b border-line py-3">
           <span>
@@ -237,6 +251,67 @@
           bind:value={settings.historyLimit} onchange={persist}
         />
       </label>
+    </section>
+
+    <!-- Smart formatting -->
+    <section class="rounded-[22px] bg-screen px-5 py-4 shadow-sm">
+      <h2 class="mb-1 text-[13px] font-bold uppercase tracking-wider text-grey">
+        Smart formatting
+      </h2>
+      <p class="text-[12.5px] text-grey">
+        An AI pass that punctuates and capitalizes by grammar — so you can just
+        talk, without saying “comma” or “period”.
+      </p>
+      {#each [
+        { id: "off", name: "Off", hint: "Rule-based cleanup only — fastest, works everywhere" },
+        { id: "chrome", name: "On-device (Chrome)", hint: "Free and private, but needs a capable machine + a one-time model download" },
+        { id: "cloudflare", name: "Cloudflare", hint: "Best quality on any machine — uses your Cloudflare account (same as the engines above)" },
+      ] as opt (opt.id)}
+        <button
+          class="flex w-full items-center justify-between gap-3.5 border-b border-line py-3 text-left last:border-b-0"
+          aria-pressed={polishChoice === opt.id}
+          onclick={() => setPolish(opt.id)}
+        >
+          <span>
+            <span class="font-semibold">{opt.name}</span>
+            <span class="mt-0.5 block text-[12.5px] text-grey">{opt.hint}</span>
+          </span>
+          <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] border-line bg-face">
+            {#if polishChoice === opt.id}
+              <span class="h-2 w-2 rounded-full bg-accent"></span>
+            {/if}
+          </span>
+        </button>
+      {/each}
+
+      {#if polishChoice === "cloudflare"}
+        <div class="mt-1 border-t border-line pt-1">
+          <label class="flex items-center justify-between gap-3.5 py-3">
+            <span>
+              <span class="font-semibold">Formatting model</span>
+              <span class="mt-0.5 block text-[12.5px] text-grey">
+                A Workers AI text model. The default is fast and cheap; larger
+                models format better.
+              </span>
+            </span>
+            <select
+              class="max-w-[55vw] rounded-xl border border-line bg-face px-3 py-1.5 text-[13.5px]"
+              bind:value={settings.cfTextModel} onchange={persist}
+            >
+              <option value="@cf/meta/llama-3.1-8b-instruct">Llama 3.1 8B (fast)</option>
+              <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">Llama 3.3 70B (best)</option>
+              <option value="@cf/meta/llama-3.2-3b-instruct">Llama 3.2 3B (fastest)</option>
+            </select>
+          </label>
+          {#if !settings.cfAccountId || !settings.cfApiToken}
+            <p class="rounded-lg bg-panel px-3 py-2 text-[12.5px] text-grey">
+              Add your Cloudflare Account ID and API token in the
+              <b>Speech engine</b> section above — the same credentials power
+              formatting.
+            </p>
+          {/if}
+        </div>
+      {/if}
     </section>
 
     <!-- Custom words -->

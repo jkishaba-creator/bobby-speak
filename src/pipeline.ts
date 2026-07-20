@@ -63,7 +63,7 @@ export function startDictation(settings: Settings): DictationSession {
 
   // Load the on-device model while the user talks, so first-use model
   // loading never lands on the path between "stop" and text appearing.
-  if (settings.aiPolish !== false) warmUpGrammar();
+  warmUpGrammar(settings);
 
   let capture: AudioCapture | null = null;
   let committedRaw = "";

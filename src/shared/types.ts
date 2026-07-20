@@ -29,6 +29,8 @@ export interface Settings {
   removeFillers: boolean;
   spokenPunctuation: boolean;
   aiPolish: boolean;
+  polishProvider: "chrome" | "cloudflare";
+  cfTextModel: string;
   customWords: string[];
   historyLimit: number;
   cfAccountId: string;
@@ -42,6 +44,8 @@ export const DEFAULT_SETTINGS: Settings = {
   removeFillers: true,
   spokenPunctuation: true,
   aiPolish: true,
+  polishProvider: "chrome",
+  cfTextModel: "@cf/meta/llama-3.1-8b-instruct",
   customWords: [],
   historyLimit: 25,
   cfAccountId: "",
