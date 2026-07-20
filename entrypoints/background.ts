@@ -223,6 +223,14 @@ export default defineBackground(() => {
     if (command === "dictate-from-anywhere") void smartToggle();
   });
 
+  // First install: open onboarding so the mic grant, shortcut check, and a
+  // first dictation all happen up front — after this page, it just works.
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === "install") {
+      void chrome.tabs.create({ url: chrome.runtime.getURL("/onboarding.html") });
+    }
+  });
+
   chrome.runtime.onMessage.addListener(
     (msg: BackgroundMessage, _sender, sendResponse) => {
       if (!msg || msg.target !== "background") return;
@@ -260,7 +268,7 @@ export default defineBackground(() => {
           sendToTab({ type: "overlay-hide" });
           void setState("idle");
           void chrome.tabs.create({
-            url: chrome.runtime.getURL("/permission.html"),
+            url: chrome.runtime.getURL("/onboarding.html"),
           });
           break;
         case "engine-error":
