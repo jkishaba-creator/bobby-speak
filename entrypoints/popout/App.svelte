@@ -90,6 +90,7 @@
     settings = hasChrome ? await getSettings() : { ...DEFAULT_SETTINGS };
     session = startDictation(settings);
     listening = true;
+    reportState(true);
     statusTitle = "Listening…";
     statusSub =
       settings.engine === "cf-whisper"
@@ -140,8 +141,17 @@
     await session.stop();
   }
 
+  function reportState(on: boolean) {
+    if (hasChrome) {
+      chrome.runtime
+        .sendMessage({ target: "background", type: "popout-state", listening: on })
+        .catch(() => {});
+    }
+  }
+
   function finishUi() {
     listening = false;
+    reportState(false);
     tentative = "";
     levels = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     statusTitle = "Click the orb, then talk";

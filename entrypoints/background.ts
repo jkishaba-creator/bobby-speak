@@ -174,32 +174,53 @@ export default defineBackground(() => {
   }
 
   chrome.windows.onRemoved.addListener((id) => {
-    if (id === popoutWindowId) popoutWindowId = null;
+    if (id === popoutWindowId) {
+      popoutWindowId = null;
+      popoutListening = false; // a closed pop-out can't be listening
+    }
   });
 
-  // The global shortcut should control whatever the user is looking at:
-  // if the pop-out window is focused, toggle ITS session, not the page flow.
-  async function toggleFromCommand() {
-    if (popoutWindowId != null) {
-      try {
-        const focused = await chrome.windows.getLastFocused();
-        if (focused.id === popoutWindowId) {
-          chrome.runtime
-            .sendMessage({ target: "popout", type: "toggle" })
-            .catch(() => {});
-          return;
-        }
-      } catch {
-        /* fall through to the page flow */
-      }
+  let popoutListening = false;
+
+  function togglePopout() {
+    chrome.runtime.sendMessage({ target: "popout", type: "toggle" }).catch(() => {});
+  }
+
+  // ONE shortcut, context-smart:
+  //   a session is running somewhere        -> stop it (wherever it is)
+  //   pop-out window focused                -> its session (live transcript)
+  //   a Chrome window focused               -> page flow (overlay + insert)
+  //   any other app focused                 -> clipboard mode (beeps + paste)
+  async function smartToggle() {
+    if (popoutListening) {
+      togglePopout();
+      return;
     }
-    void toggleDictation();
+    if (state === "listening") {
+      void stopDictation();
+      return;
+    }
+    if (state !== "idle") return;
+
+    let focusedWindow: chrome.windows.Window | null = null;
+    try {
+      focusedWindow = await chrome.windows.getLastFocused();
+    } catch {
+      /* no window info — treat as another app */
+    }
+    if (focusedWindow?.focused) {
+      if (focusedWindow.id === popoutWindowId) {
+        togglePopout();
+        return;
+      }
+      void startDictation(false);
+      return;
+    }
+    void startDictation(true);
   }
 
   chrome.commands.onCommand.addListener((command) => {
-    if (command === "toggle-dictation") void toggleFromCommand();
-    if (command === "open-popout") void openPopout();
-    if (command === "dictate-from-anywhere") void toggleDictation(true);
+    if (command === "dictate-from-anywhere") void smartToggle();
   });
 
   chrome.runtime.onMessage.addListener(
@@ -211,6 +232,9 @@ export default defineBackground(() => {
           break;
         case "open-popout":
           void openPopout();
+          break;
+        case "popout-state":
+          popoutListening = msg.listening;
           break;
         case "copy-request":
           // Pop-out asking for an unfocused-safe clipboard write: the

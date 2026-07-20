@@ -5,7 +5,7 @@
   let phase: "idle" | "listening" | "processing" = $state("idle");
   let lastText = $state("");
   let shortcut = $state(
-    navigator.platform.toLowerCase().includes("mac") ? "⌘⇧Space" : "Ctrl+Shift+Space",
+    navigator.platform.toLowerCase().includes("mac") ? "⌘⇧1" : "Ctrl+Shift+1",
   );
   let shortcutMissing = $state(false);
   let copied = $state(false);
@@ -26,7 +26,7 @@
     // Show the truth about the shortcut, not the assumption — Chrome silently
     // refuses to bind keys another extension holds.
     chrome.commands.getAll((commands) => {
-      const toggle = commands.find((c) => c.name === "toggle-dictation");
+      const toggle = commands.find((c) => c.name === "dictate-from-anywhere");
       if (toggle?.shortcut) shortcut = toggle.shortcut;
       else if (toggle) shortcutMissing = true;
     });
@@ -99,7 +99,7 @@
       <div class="text-[15px] font-bold">{statusTitle}</div>
       {#if phase === "idle"}
         <div class="mt-0.5 text-xs text-grey">
-          or press <span class="kbd">{shortcut}</span> on any page
+          or press <span class="kbd">{shortcut}</span> — in Chrome or any app
         </div>
       {/if}
     </div>

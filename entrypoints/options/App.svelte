@@ -14,7 +14,7 @@
   let history: Array<{ text: string; ts: number }> = $state([]);
 
   const isMac = navigator.platform.toLowerCase().includes("mac");
-  let shortcut = $state(isMac ? "⌘⇧Space" : "Ctrl+Shift+Space");
+  let shortcut = $state(isMac ? "⌘⇧1" : "Ctrl+Shift+1");
 
   const ENGINES: Array<{ id: EngineId; name: string; badge: string; hint: string }> = [
     { id: "chrome", name: "Chrome built-in", badge: "free",
@@ -35,7 +35,7 @@
     getSettings().then((s) => (settings = s));
     chrome.storage.local.get("history").then((d) => (history = d.history ?? []));
     chrome.commands.getAll((commands) => {
-      const t = commands.find((c) => c.name === "toggle-dictation");
+      const t = commands.find((c) => c.name === "dictate-from-anywhere");
       if (t?.shortcut) shortcut = t.shortcut;
     });
   }
@@ -272,8 +272,8 @@
       <h2 class="mb-1 text-[13px] font-bold uppercase tracking-wider text-grey">Keyboard shortcut</h2>
       <div class="flex items-center justify-between gap-3.5 border-b border-line py-3">
         <span>
-          <span class="font-semibold">Toggle dictation</span>
-          <span class="mt-0.5 block text-[12.5px] text-grey">Works on any normal web page</span>
+          <span class="font-semibold">Start / stop dictation</span>
+          <span class="mt-0.5 block text-[12.5px] text-grey">One shortcut everywhere — web pages, the pop-out, and other apps (via clipboard)</span>
         </span>
         <span class="rounded-lg border border-line bg-face px-2.5 py-1 font-mono text-xs font-semibold">
           {shortcut}

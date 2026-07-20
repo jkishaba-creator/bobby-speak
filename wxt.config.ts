@@ -26,22 +26,12 @@ export default defineConfig({
     ],
     host_permissions: ["<all_urls>"],
     commands: {
-      "toggle-dictation": {
-        suggested_key: {
-          default: "Ctrl+Shift+Space",
-          mac: "Command+Shift+Space",
-        },
-        description: "Start / stop dictation",
-      },
-      "open-popout": {
-        suggested_key: { default: "Ctrl+Shift+O", mac: "Command+Shift+O" },
-        description: "Open the pop-out (dictate for other apps)",
-      },
-      // Global commands fire even when Chrome is NOT the focused app.
-      // Chrome restricts them to Ctrl/Command+Shift+0-9.
+      // ONE shortcut for everything. Global scope (fires even when Chrome
+      // is not the focused app) — Chrome restricts global commands to
+      // Ctrl/Command+Shift+0-9, which is why it's "1" and not Space.
       "dictate-from-anywhere": {
         suggested_key: { default: "Ctrl+Shift+1", mac: "Command+Shift+1" },
-        description: "Dictate from ANY app — result lands on the clipboard",
+        description: "Start / stop dictation — in Chrome or any app",
         global: true,
       },
     },

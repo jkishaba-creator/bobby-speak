@@ -57,6 +57,7 @@ export type BackgroundMessage =
   | { target: "background"; type: "toggle" }
   | { target: "background"; type: "open-popout" }
   | { target: "background"; type: "copy-request"; text: string }
+  | { target: "background"; type: "popout-state"; listening: boolean }
   | { target: "background"; type: "get-state" }
   | { target: "background"; type: "level"; levels: LevelFrame }
   | { target: "background"; type: "text"; event: TextEvent }
