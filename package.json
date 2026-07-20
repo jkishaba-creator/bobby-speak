@@ -1,0 +1,26 @@
+{
+  "name": "bobby-speak",
+  "description": "Voice dictation for the browser — V2 streaming architecture",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.16",
+    "@types/chrome": "^0.0.287",
+    "@wxt-dev/module-svelte": "^2.0.0",
+    "svelte": "^5.16.0",
+    "svelte-check": "^4.1.0",
+    "tailwindcss": "^4.1.16",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "wxt": "^0.20.0"
+  }
+}

@@ -10,8 +10,8 @@ That's genuinely all you need. Everything below is detail for when you want it.
 
 1. Pick an [open issue](../../issues) (or open one) and comment **`.take`** so
    nobody doubles up on it.
-2. Fork, make your change, run **`node test/run-tests.js`**, and actually try
-   it in Chrome.
+2. Fork, make your change, run **`npm test`**, and actually try it in Chrome
+   (`npm run build`, then Load unpacked → `.output/chrome-mv3`).
 3. Open a PR. Keep it to one thing, no new dependencies.
 
 ## Claiming work, so we don't collide
@@ -61,26 +61,27 @@ Look for issues labelled **good first issue** if you want somewhere to start.
 
 ## Setting up
 
-There is no build step and there are no dependencies. You need Node (for the
-tests) and Chrome.
+You need Node 20+ and Chrome.
 
 ```bash
 git clone https://github.com/jkishaba-creator/bobby-speak.git
 cd bobby-speak
-node test/run-tests.js     # should print "All N checks passed."
+npm install
+npm test           # vitest — must pass
+npm run dev        # live-reload development build
+npm run build      # production build → .output/chrome-mv3
 ```
 
 To load your working copy in Chrome: `chrome://extensions` → **Developer
-mode** → **Load unpacked** → pick the folder. After editing, hit the reload
-button on the extension card. Reload the web page too if you changed
-`content.js`.
+mode** → **Load unpacked** → pick **`.output/chrome-mv3`** (not the repo
+root). `npm run dev` reloads the extension automatically as you edit.
 
 ## Making a change
 
 1. **Fork** the repo and create a branch: `git checkout -b fix-flux-timeout`
 2. Make your change.
-3. **Run the tests**: `node test/run-tests.js`. Add cases for anything you fix
-   or add — `test/run-tests.js` is a plain script, just append a `check(...)`.
+3. **Run the tests**: `npm test`. Add cases for anything you fix or add —
+   the suites in `test/` are plain vitest files.
 4. **Actually try it in Chrome.** Load the extension and dictate something.
    Tests catch broken logic; they cannot catch a broken microphone flow.
 5. Push and open a pull request against `main`.
@@ -92,15 +93,14 @@ Things that make a PR easy to say yes to:
 - **It does one thing.** A PR that fixes a bug *and* reformats three files is
   hard to review and slow to merge.
 - **The tests pass**, and new behavior has a test.
-- **It matches the surrounding style.** Plain JavaScript, no frameworks, no
-  build step, no new dependencies. If you think the project genuinely needs a
-  dependency, open an issue about it first — the zero-dependency property is
-  deliberate.
+- **It matches the surrounding style.** TypeScript + Svelte 5, staged pure
+  functions in the pipeline, and no new runtime dependencies without an issue
+  first — the extension itself ships zero runtime deps, deliberately.
 - **It respects the privacy promise.** Nothing may send audio, transcripts, or
   usage data anywhere except a speech provider the user explicitly configured.
   No analytics, no telemetry, no phone-home. This is not negotiable.
-- **The UI stays consistent.** Use the tokens and components in `ui.css`
-  rather than introducing new colors or one-off styles.
+- **The UI stays consistent.** Use the design tokens in
+  `assets/tailwind.css` rather than introducing new colors or one-off styles.
 
 Things that will get a PR sent back:
 
@@ -113,18 +113,21 @@ Things that will get a PR sent back:
 
 | Area | Files |
 |---|---|
-| State machine, message routing | `background.js` |
-| Microphone, engines, level meter | `offscreen.js`, `lib/engines.js` |
-| Page overlay + text insertion | `content.js` |
-| Pop-out window | `popout.html`, `popout.js` |
-| Settings | `options.html`, `options.js` |
-| Grammar and cleanup rules | `lib/textCleanup.js` |
-| Design tokens and components | `ui.css` |
+| State machine, message routing | `entrypoints/background.ts` |
+| The pipeline (audio → ASR → processing → output) | `src/pipeline.ts` |
+| Microphone + level meter | `src/audio/` |
+| ASR providers | `src/ai/providers/` |
+| Text processing stages | `src/processing/stages/` |
+| Page overlay + text insertion | `src/output/`, `entrypoints/content.ts` |
+| Pop-out, popup, settings, onboarding | `entrypoints/*/App.svelte` |
+| Design tokens | `assets/tailwind.css` |
 
-Adding a speech engine means implementing one interface in `lib/engines.js`
-(`start(stream, audioCtx)` / `stop()`, plus the `onTentative` / `onSegment` /
-`onDone` / `onError` callbacks) and adding a row to the picker in
-`options.html`. You should not need to touch anything else.
+Adding a speech engine means implementing the `AsrProvider` interface in one
+new file under `src/ai/providers/`, registering it in `src/pipeline.ts`, and
+adding a row to the picker in `entrypoints/options/App.svelte`. Adding a text
+processor means one pure function in `src/processing/stages/`. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the full picture — layer boundaries
+are the contract; if your change spans layers, open an issue first.
 
 ## Staying in the loop
 

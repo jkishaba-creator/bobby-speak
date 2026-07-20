@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Bobby Speak design tokens — the Air OS language, carried over from v1's
+   ui.css verbatim. V2 changes the wiring, never the look. */
+@theme {
+  --color-stage: #c6c9d4;
+  --color-screen: #f7f7fa;
+  --color-panel: #efeff4;
+  --color-face: #ffffff;
+  --color-ink: #17171b;
+  --color-grey: #979aa6;
+  --color-lite: #9da0ac;
+  --color-line: #dfe1e9;
+  --color-accent: #e8620a;
+  --color-sage: #b9c6ae;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI",
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-pill: 999px;
+}
+
+/* Shared component classes used across popup/options/popout. Kept as CSS (not
+   per-component utility soup) so the design language lives in one place. */
+@layer components {
+  .pillbtn {
+    @apply cursor-pointer whitespace-nowrap rounded-pill bg-face px-4 py-2 text-[13px] font-semibold text-ink shadow-[0_8px_16px_-10px_rgba(40,42,60,0.4)] transition-transform duration-100 active:scale-95;
+  }
+  .pillbtn-dark {
+    @apply bg-ink text-screen;
+  }
+  .brand-lite {
+    @apply font-semibold text-lite;
+  }
+}

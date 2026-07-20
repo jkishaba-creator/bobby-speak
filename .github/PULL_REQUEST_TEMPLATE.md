@@ -8,5 +8,5 @@
 
 ---
 
-- [ ] `node test/run-tests.js` passes
-- [ ] I loaded it in Chrome and dictated with it
+- [ ] `npm test` passes
+- [ ] I loaded `.output/chrome-mv3` in Chrome and dictated with it
