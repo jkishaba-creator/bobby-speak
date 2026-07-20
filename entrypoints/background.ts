@@ -1,0 +1,185 @@
+// Extension layer: lifecycle + routing only. No AI logic lives here — the
+// pipeline runs in the offscreen document; this file moves messages between
+// contexts and owns the dictation state machine.
+
+import { getSettings } from "../src/shared/settings";
+import type {
+  BackgroundMessage,
+  ContentMessage,
+  OffscreenMessage,
+} from "../src/shared/types";
+
+type State = "idle" | "listening" | "processing";
+
+export default defineBackground(() => {
+  let state: State = "idle";
+  let targetTabId: number | null = null;
+  let tabReachable = false;
+
+  async function setState(next: State) {
+    state = next;
+    const badge =
+      next === "listening" ? "REC" : next === "processing" ? "…" : "";
+    try {
+      await chrome.action.setBadgeText({ text: badge });
+      if (next === "listening") {
+        await chrome.action.setBadgeBackgroundColor({ color: "#E8620A" });
+        await chrome.action.setBadgeTextColor({ color: "#FFFFFF" });
+      }
+    } catch {
+      /* badge races during startup are harmless */
+    }
+    chrome.runtime
+      .sendMessage({ target: "popup", type: "state-changed", state: next })
+      .catch(() => {});
+  }
+
+  async function ensureOffscreen() {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType],
+    });
+    if (contexts.length > 0) return;
+    await chrome.offscreen.createDocument({
+      url: "/offscreen.html",
+      reasons: ["USER_MEDIA" as chrome.offscreen.Reason],
+      justification:
+        "Captures microphone audio and runs the dictation pipeline.",
+    });
+  }
+
+  function sendToTab(msg: ContentMessage) {
+    if (targetTabId == null) return;
+    chrome.tabs.sendMessage(targetTabId, msg).catch(() => {});
+  }
+
+  function sendToOffscreen(msg: OffscreenMessage) {
+    chrome.runtime.sendMessage(msg).catch(() => {});
+  }
+
+  async function pingTab(tabId: number): Promise<boolean> {
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: "ping" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Content scripts only auto-load into pages opened after install; inject on
+  // demand for older tabs so the shortcut never silently does nothing.
+  async function ensureContentScript(tabId: number | null): Promise<boolean> {
+    if (tabId == null) return false;
+    if (await pingTab(tabId)) return true;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["content-scripts/content.js"],
+      });
+    } catch {
+      return false; // chrome:// page, Web Store, PDF viewer
+    }
+    return pingTab(tabId);
+  }
+
+  function flashBadge(text: string, ms: number) {
+    chrome.action.setBadgeText({ text }).catch(() => {});
+    chrome.action.setBadgeBackgroundColor({ color: "#0E7568" }).catch(() => {});
+    setTimeout(() => chrome.action.setBadgeText({ text: "" }).catch(() => {}), ms);
+  }
+
+  async function startDictation() {
+    if (state !== "idle") return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    targetTabId = tab?.id ?? null;
+    tabReachable = await ensureContentScript(targetTabId);
+    const settings = await getSettings();
+    await ensureOffscreen();
+    await setState("listening");
+    sendToTab({ type: "overlay-show" });
+    sendToOffscreen({ target: "offscreen", type: "start", settings });
+  }
+
+  async function stopDictation() {
+    if (state !== "listening") return;
+    await setState("processing");
+    sendToTab({ type: "overlay-processing" });
+    sendToOffscreen({ target: "offscreen", type: "stop" });
+  }
+
+  async function toggleDictation() {
+    if (state === "listening") await stopDictation();
+    else if (state === "idle") await startDictation();
+  }
+
+  async function finishWithTranscript(transcript: string) {
+    const settings = await getSettings();
+    const text = transcript.trim();
+    if (text) {
+      if (tabReachable) {
+        sendToTab({ type: "insert-text", text });
+      } else {
+        sendToOffscreen({ target: "offscreen", type: "copy", text });
+        flashBadge("COPY", 4000);
+      }
+      const { history = [] } = await chrome.storage.local.get("history");
+      history.unshift({ text, ts: Date.now() });
+      await chrome.storage.local.set({
+        history: history.slice(0, settings.historyLimit),
+        lastTranscript: text,
+      });
+    }
+    sendToTab({ type: "overlay-hide" });
+    await setState("idle");
+  }
+
+  chrome.commands.onCommand.addListener((command) => {
+    if (command === "toggle-dictation") void toggleDictation();
+  });
+
+  chrome.runtime.onMessage.addListener(
+    (msg: BackgroundMessage, _sender, sendResponse) => {
+      if (!msg || msg.target !== "background") return;
+      switch (msg.type) {
+        case "toggle":
+          void toggleDictation();
+          break;
+        case "get-state":
+          sendResponse({ state });
+          return;
+        case "level":
+          sendToTab({ type: "overlay-level", levels: msg.levels });
+          break;
+        case "text":
+          // The offscreen pipeline pre-splits committed/tentative for us.
+          break;
+        case "done":
+          void finishWithTranscript(msg.transcript);
+          break;
+        case "mic-denied":
+          sendToTab({ type: "overlay-hide" });
+          void setState("idle");
+          void chrome.tabs.create({
+            url: chrome.runtime.getURL("/permission.html"),
+          });
+          break;
+        case "engine-error":
+          sendToTab({ type: "overlay-error", message: msg.message });
+          void setState("idle");
+          setTimeout(() => sendToTab({ type: "overlay-hide" }), 2400);
+          break;
+      }
+    },
+  );
+
+  // Overlay text updates flow directly offscreen → background → tab with the
+  // committed/tentative split; wire it as its own listener to keep types tidy.
+  chrome.runtime.onMessage.addListener((msg: any) => {
+    if (msg?.target === "background" && msg.type === "overlay-text") {
+      sendToTab({
+        type: "overlay-text",
+        committed: msg.committed,
+        tentative: msg.tentative,
+      });
+    }
+  });
+});
