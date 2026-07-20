@@ -22,6 +22,7 @@ import { spokenPunctuationStage } from "./processing/stages/spoken-punctuation";
 import { capitalizationStage, finalTidyStage } from "./processing/stages/capitalization";
 import { vocabularyStage } from "./processing/stages/vocabulary";
 import { grammarStage, warmUpGrammar } from "./processing/stages/grammar";
+import { joinSegments } from "./processing/join";
 import { Emitter, type Stream } from "./shared/stream";
 import type { LevelFrame, Settings, TextEvent } from "./shared/types";
 
@@ -144,7 +145,7 @@ export function startDictation(settings: Settings): DictationSession {
       emit(event: TextEvent) {
         if (event.kind === "final") {
           finalCount++;
-          committedRaw += event.text;
+          committedRaw = joinSegments(committedRaw, event.text, settings.customWords);
           emitText("");
         } else {
           partialCount++;

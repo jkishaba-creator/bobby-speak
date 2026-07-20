@@ -34,7 +34,16 @@ let sessionPromise: Promise<{ prompt(t: string): Promise<string> }> | null =
 async function ensureSession() {
   if (typeof LanguageModel === "undefined") return null;
   try {
-    if ((await LanguageModel.availability(LANGUAGE_OPTS)) !== "available") {
+    const availability = await LanguageModel.availability(LANGUAGE_OPTS);
+    // "downloadable"/"downloading": create() attaches to (or kicks off) the
+    // one-time model download instead of silently never polishing. When
+    // Chrome requires user activation for the download, create() rejects,
+    // we return null, and a later attempt from a visible page succeeds.
+    if (
+      availability !== "available" &&
+      availability !== "downloadable" &&
+      availability !== "downloading"
+    ) {
       return null;
     }
     sessionPromise ??= LanguageModel.create({
