@@ -10,6 +10,11 @@ export default defineConfig({
   }),
   manifest: {
     name: "Bobby Speak",
+    icons: {
+      16: "/icon/16.png",
+      48: "/icon/48.png",
+      128: "/icon/128.png",
+    },
     description:
       "Voice dictation for the browser. Press the shortcut, speak, and text lands at your cursor — streaming as you talk.",
     permissions: [

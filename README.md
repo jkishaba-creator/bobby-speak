@@ -12,8 +12,9 @@ by [@jR4dh3y](https://github.com/jR4dh3y)).
 
 Working end to end: streaming pipeline, three ASR providers (Chrome built-in,
 Cloudflare Whisper large-v3-turbo, Deepgram Flux), staged text processing with
-v1 test parity (25 tests), overlay + injection, popup.
-Not yet ported from v1: options page, pop-out window, history browser.
+v1 test parity (25 tests), overlay + injection, popup, settings page with
+engine picker and history.
+Not yet ported from v1: pop-out window.
 
 ## Build
 
