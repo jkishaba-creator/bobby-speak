@@ -1,39 +1,123 @@
-# Bobby Speak V2
+# Bobby Speak
 
-The streaming rewrite of [Bobby Speak](https://github.com/jkishaba-creator/bobby-speak)
-— same product, same Air OS design language, new wiring. Text appears while
-you speak, and every AI component sits behind a provider interface.
+**Voice dictation for the browser — free, open source, and private.**
+Press one shortcut, speak, and clean, punctuated text lands at your cursor —
+streaming onto the page while you talk. Works in Chrome, and — via the
+pop-out and clipboard mode — with every other app on your machine.
 
-Architecture spec and rationale: [ARCHITECTURE.md](ARCHITECTURE.md)
-(based on [issue #4](https://github.com/jkishaba-creator/bobby-speak/issues/4)
-by [@jR4dh3y](https://github.com/jR4dh3y)).
+No account, no subscription, no telemetry, no server of ours. Ever.
 
-## Status: alpha
+<sub>MIT licensed · Manifest V3 · WXT + Svelte 5 + TypeScript</sub>
 
-Working end to end: streaming pipeline, three ASR providers (Chrome built-in,
-Cloudflare Whisper large-v3-turbo, Deepgram Flux), staged text processing with
-v1 test parity (25 tests), overlay + injection, popup, settings page with
-engine picker and history.
-Everything from v1 is now ported, including the pop-out window for dictating
-into other apps via the clipboard. One shortcut — ⌘⇧1 / Ctrl+Shift+1 — runs
-everything: web pages, the pop-out, and dictation from any other app.
+---
 
-## Build
+## What it does
+
+- **One shortcut everywhere** — `⌘⇧1` / `Ctrl+Shift+1` starts and stops
+  dictation. On a web page it types at your cursor; with the pop-out focused
+  it fills the pop-out; from **any other app** it records in the background
+  (audible start/stop chimes) and puts the finished text on your clipboard,
+  ready to paste.
+- **Streaming** — text appears in the overlay while you're still speaking,
+  not after.
+- **Smart formatting** — an optional AI pass punctuates and capitalizes by
+  grammar, so you can just talk without saying "comma". Two providers:
+  Chrome's built-in Gemini Nano (free, on-device) or a Workers AI model on
+  your own Cloudflare account (best quality, works on any machine).
+- **Three speech engines** — Chrome built-in (free, zero setup),
+  `@cf/openai/whisper-large-v3-turbo` (best accuracy, batch), or
+  `@cf/deepgram/flux` (streaming with smart end-of-phrase detection), the
+  Cloudflare pair on your own account.
+- **Cleanup that reads like writing** — fillers and stutters removed, spoken
+  punctuation ("period", "new line") honored, fuzzy custom-word correction
+  for names and jargon.
+- **Pop-out window** — a small always-available surface that keeps your
+  clipboard preloaded as you speak: dictate there, paste anywhere.
+- **First-run onboarding** — mic permission, shortcut check, and a try-it box,
+  all up front. After that page, it just works.
+- **Local history** — recent transcriptions on this device only, capped,
+  clearable, and `0` genuinely keeps nothing.
+
+## Install
+
+Not on the Web Store yet — load it unpacked:
+
+1. Clone this repo, then `npm install && npm run build`
+2. Open `chrome://extensions`, enable **Developer mode**
+3. **Load unpacked** → select **`.output/chrome-mv3`**
+4. The welcome page opens itself — three steps and you're set
+
+## Privacy
+
+- Audio goes only to the speech engine **you** selected — Chrome's built-in
+  service by default, or your own Cloudflare account. There is no Bobby Speak
+  server.
+- Smart formatting runs on-device (Gemini Nano) or on your Cloudflare
+  account. Your API token is stored only in your local Chrome profile.
+- History and settings live in `chrome.storage.local` — never synced,
+  never transmitted.
+
+## How it's built
+
+A real-time streaming pipeline — see [ARCHITECTURE.md](ARCHITECTURE.md),
+which grew out of community issue
+[#4](https://github.com/jkishaba-creator/bobby-speak/issues/4) by
+[@jR4dh3y](https://github.com/jR4dh3y):
+
+```
+Mic ─ frames ─▶ ASR provider ─ events ─▶ staged processing ─▶ overlay/inject
+     src/audio/   src/ai/                src/processing/       src/output/
+```
+
+Every layer is pluggable: an ASR engine is one file implementing
+`AsrProvider`, a text processor is one pure function. 117 tests cover the
+pipeline, the grammar stages, the audio math, and the workflow files.
 
 ```bash
 npm install
-npm test            # 25 tests, must pass
-npm run build       # → .output/chrome-mv3
+npm test          # vitest
+npm run check     # svelte-check
+npm run dev       # live-reload development
+npm run build     # → .output/chrome-mv3
 ```
-
-Load it: `chrome://extensions` → Developer mode → **Load unpacked** →
-pick `.output/chrome-mv3`. For live-reload development: `npm run dev`.
 
 ## Contributing
 
-Same rules as v1 — comment `.take` on an issue first, one thing per PR,
-no telemetry ever. Layer boundaries are the contract: an ASR provider is one
-file in `src/ai/providers/`, a processing stage is one pure function in
-`src/processing/stages/`. If your change spans layers, open an issue first.
+Community project, contributions welcome. Three steps:
 
-MIT — see the main repo's [LICENSE](https://github.com/jkishaba-creator/bobby-speak/blob/main/LICENSE).
+1. Comment **`.take`** on an [issue](../../issues) so we don't double up.
+2. Make your change; `npm test` must pass — and actually dictate with it.
+3. Open a PR — one thing at a time.
+
+Details in [CONTRIBUTING.md](CONTRIBUTING.md). Ideas go in
+[Discussions](../../discussions); everything is announced in the project
+Discord. Every change is reviewed and merged by the maintainer.
+
+## Known limits
+
+- Chrome must be running (background is fine) — an extension can't outlive
+  its browser.
+- Native apps are reached via the clipboard (chime → talk → chime → paste);
+  no Chrome extension can type keystrokes into another app.
+- Google Docs draws its editor on a canvas: falls back to copy-to-clipboard
+  with a paste hint.
+- Global shortcuts are restricted by Chrome to `Ctrl/⌘+Shift+0–9`.
+
+## Version history
+
+- **v2 (current)** — streaming pipeline architecture, one global shortcut,
+  smart formatting, onboarding. This line.
+- **v1** — the original no-build vanilla-JS extension, preserved on the
+  [`v1` branch](../../tree/v1).
+
+## Credits
+
+The text-cleanup approach and recording state machine trace back to ideas
+from [Handy](https://github.com/cjpais/Handy) by CJ Pais (MIT), reimagined
+twice over — see [LICENSE](LICENSE). The v2 architecture spec came from the
+community. The literal-punctuation guard came from
+[@jpachec0](https://github.com/jpachec0)'s v1 PR.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

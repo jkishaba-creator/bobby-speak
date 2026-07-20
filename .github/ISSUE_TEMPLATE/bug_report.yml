@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work the way it should
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: For dictation bugs, "what you said and what you got" is the most useful thing you can give us.
+      placeholder: |
+        I said: "meet me tomorrow comma maybe at noon"
+        I got:  "meet me tomorrow maybe at noon"
+        I expected a comma.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Speech engine
+      options:
+        - Chrome built-in (default)
+        - Whisper (Cloudflare)
+        - Deepgram Flux (Cloudflare)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Where were you dictating?
+      placeholder: "gmail.com · notion.so · the pop-out window"
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: "Optional: extension version (bottom of Settings), Chrome version, console errors."

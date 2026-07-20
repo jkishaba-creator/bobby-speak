@@ -1,0 +1,5 @@
+# Every change requires review from the maintainer.
+# Combined with "Require review from Code Owners" branch protection,
+# nothing reaches main without @jkishaba-creator approving it.
+
+* @jkishaba-creator

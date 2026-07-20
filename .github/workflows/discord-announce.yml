@@ -1,0 +1,111 @@
+name: Announce to Discord
+
+# Curated announcements, separate from the raw activity feed you get from the
+# repo webhook. Add DISCORD_ANNOUNCE_WEBHOOK as a repository secret to enable;
+# every job no-ops cleanly when the secret is missing.
+#
+# These triggers only fire on events in this repository, never on pull_request,
+# so a forked PR can never reach the secret. Payloads are built with jq so
+# release notes and issue titles can't break out of the JSON.
+
+on:
+  release:
+    types: [published]
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: New release
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post release to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+          TAG: ${{ github.event.release.tag_name }}
+          TITLE: ${{ github.event.release.name }}
+          URL: ${{ github.event.release.html_url }}
+          BODY: ${{ github.event.release.body }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "DISCORD_ANNOUNCE_WEBHOOK not set — skipping."
+            exit 0
+          fi
+          # Discord caps embed descriptions at 4096 characters.
+          notes=$(printf '%s' "$BODY" | head -c 3800)
+          [ -z "$notes" ] && notes="See the release page for details."
+
+          jq -n \
+            --arg title "🎙️ Bobby Speak $TAG" \
+            --arg desc "$notes" \
+            --arg url "$URL" \
+            --arg footer "Reload the extension at chrome://extensions to update" \
+            '{
+              content: "New release is out.",
+              embeds: [{
+                title: $title,
+                description: $desc,
+                url: $url,
+                color: 15229450,
+                footer: { text: $footer }
+              }]
+            }' > payload.json
+
+          curl -sS -f -X POST -H "Content-Type: application/json" \
+            -d @payload.json "$WEBHOOK"
+          echo "Posted $TAG to Discord."
+
+  help-wanted:
+    name: Contributor call-out
+    if: >
+      github.event_name == 'issues' &&
+      (github.event.label.name == 'good first issue' ||
+       github.event.label.name == 'help wanted')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post issue to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+          LABEL: ${{ github.event.label.name }}
+          NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          URL: ${{ github.event.issue.html_url }}
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "DISCORD_ANNOUNCE_WEBHOOK not set — skipping."
+            exit 0
+          fi
+          summary=$(printf '%s' "$BODY" | head -c 400)
+          [ -z "$summary" ] && summary="Open the issue for details."
+
+          if [ "$LABEL" = "good first issue" ]; then
+            lead="Good first issue up for grabs — no prior context needed."
+            title="🌱 #$NUMBER · $TITLE"
+          else
+            lead="Help wanted on this one."
+            title="🙋 #$NUMBER · $TITLE"
+          fi
+
+          jq -n \
+            --arg content "$lead" \
+            --arg title "$title" \
+            --arg desc "$summary" \
+            --arg url "$URL" \
+            '{
+              content: $content,
+              embeds: [{
+                title: $title,
+                description: $desc,
+                url: $url,
+                color: 951144
+              }]
+            }' > payload.json
+
+          curl -sS -f -X POST -H "Content-Type: application/json" \
+            -d @payload.json "$WEBHOOK"
+          echo "Posted issue #$NUMBER to Discord."

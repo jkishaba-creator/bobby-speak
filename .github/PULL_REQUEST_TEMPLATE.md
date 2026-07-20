@@ -1,0 +1,12 @@
+## What & why
+
+<!-- A sentence or two. Link the issue if there is one: "Fixes #12" -->
+
+## How you tested it
+
+<!-- Say what you actually did in Chrome: which engine, what you said, what appeared. -->
+
+---
+
+- [ ] `npm test` passes
+- [ ] I loaded `.output/chrome-mv3` in Chrome and dictated with it

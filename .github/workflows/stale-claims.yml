@@ -1,0 +1,82 @@
+name: Release stale claims
+
+# A claim board only works if claims expire. Without this, issues get squatted
+# by people who meant well three months ago, and nobody else feels able to
+# touch them.
+#
+# Nudges at 10 days of silence, releases at 14. Any comment resets the clock.
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # daily, 09:00 UTC
+  workflow_dispatch: # so you can run it by hand from the Actions tab
+
+permissions:
+  issues: write
+
+jobs:
+  reap:
+    name: Nudge and release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check claimed issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          NUDGE_DAYS: "10"
+          RELEASE_DAYS: "14"
+        run: |
+          set -euo pipefail
+          now=$(date -u +%s)
+
+          gh issue list --repo "$REPO" --label "in progress" --state open \
+            --json number,title,url,updatedAt,assignees,labels --limit 100 \
+            > /tmp/claimed.json
+
+          echo "Checking $(jq length /tmp/claimed.json) claimed issue(s)."
+
+          post_discord() {
+            [ -z "${WEBHOOK:-}" ] && return 0
+            jq -n --arg content "$1" --arg title "$2" --arg url "$3" \
+              '{content: $content, embeds: [{title: $title, url: $url, color: 10197915}]}' \
+              > /tmp/payload.json
+            curl -sS -f -X POST -H "Content-Type: application/json" \
+              -d @/tmp/payload.json "$WEBHOOK" || echo "Discord post failed (non-fatal)"
+          }
+
+          jq -c '.[]' /tmp/claimed.json | while read -r issue; do
+            number=$(printf '%s' "$issue" | jq -r '.number')
+            title=$(printf '%s' "$issue" | jq -r '.title')
+            url=$(printf '%s' "$issue" | jq -r '.url')
+            updated=$(printf '%s' "$issue" | jq -r '.updatedAt')
+            who=$(printf '%s' "$issue" | jq -r '.assignees[0].login // ""')
+            nudged=$(printf '%s' "$issue" | jq -r '[.labels[].name] | contains(["claim-nudged"])')
+
+            [ -z "$who" ] && continue
+
+            updated_s=$(date -u -d "$updated" +%s)
+            days=$(( (now - updated_s) / 86400 ))
+            echo "  #$number — @$who — $days day(s) quiet"
+
+            if [ "$days" -ge "$RELEASE_DAYS" ]; then
+              gh issue edit "$number" --repo "$REPO" \
+                --remove-assignee "$who" \
+                --remove-label "in progress" \
+                --remove-label "claim-nudged" || true
+
+              body=$(printf '%s\n\n%s\n' \
+                "Releasing this one back to the pool — it has been quiet for $days days." \
+                "No criticism at all, @$who; life happens, and unclaiming automatically is just how the board stays honest. If you are still on it, comment .take and it is yours again.")
+              gh issue comment "$number" --repo "$REPO" --body "$body"
+              post_discord "🔓 #$number is open again after $days quiet days" "#$number · $title" "$url"
+
+            elif [ "$days" -ge "$NUDGE_DAYS" ] && [ "$nudged" = "false" ]; then
+              gh issue edit "$number" --repo "$REPO" --add-label "claim-nudged" || true
+              remaining=$(( RELEASE_DAYS - days ))
+              body=$(printf '%s\n\n%s\n' \
+                "Hi @$who — just checking in, this has been quiet for $days days." \
+                "Nothing needed if you are still working on it; any comment resets the clock. If you would rather hand it off, .drop releases it with no hard feelings. Otherwise it frees up automatically in $remaining days.")
+              gh issue comment "$number" --repo "$REPO" --body "$body"
+            fi
+          done

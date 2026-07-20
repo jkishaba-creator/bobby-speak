@@ -119,6 +119,11 @@ Differences from the issue-#4 spec, and why:
    at `src/audio/` later.
 4. **LiteRT.js / local Whisper:** registry slots exist (`registerProvider`),
    implementation is the next milestone, not this one.
+5. **Grammar is provider-pluggable too:** the "Smart formatting" pass
+   (`src/processing/stages/grammar.ts`) mirrors the ASR provider idea —
+   Gemini Nano on-device or a Workers AI text model on the user's Cloudflare
+   account, chosen in Settings, with the rule-based stages as the always-on
+   fallback.
 
 ## Stack
 

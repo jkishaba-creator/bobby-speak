@@ -1,0 +1,102 @@
+name: Claim board
+
+# Lets anyone claim an issue by commenting ".take" (or "/claim"), and release
+# it with ".drop". Outside contributors can't self-assign through the GitHub
+# UI, so this is the bridge — and it announces to Discord so nobody starts
+# work someone else already started.
+#
+# issue_comment always runs the workflow file from the default branch, so a
+# forked PR cannot alter this file or reach the secret.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  claim:
+    name: Claim or release
+    if: >
+      !github.event.issue.pull_request &&
+      (contains(github.event.comment.body, '.take') ||
+       contains(github.event.comment.body, '/claim') ||
+       contains(github.event.comment.body, '.drop') ||
+       contains(github.event.comment.body, '/unclaim'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update assignment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          URL: ${{ github.event.issue.html_url }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
+          ASSIGNEE: ${{ join(github.event.issue.assignees.*.login, ',') }}
+        run: |
+          set -euo pipefail
+
+          # The command must open the comment, so quoting someone else's
+          # ".take" doesn't trigger anything.
+          first=$(printf '%s' "$BODY" | head -1 | tr -d '\r' | sed 's/^[[:space:]]*//')
+          case "$first" in
+            .take*|/claim*)   action=claim ;;
+            .drop*|/unclaim*) action=drop ;;
+            *) echo "No command at the start of the comment — ignoring."; exit 0 ;;
+          esac
+
+          current=$(printf '%s' "$ASSIGNEE" | cut -d, -f1)
+
+          post_discord() {
+            [ -z "${WEBHOOK:-}" ] && return 0
+            jq -n --arg content "$1" --arg title "$2" --arg url "$URL" \
+                  --argjson color "$3" \
+              '{content: $content, embeds: [{title: $title, url: $url, color: $color}]}' \
+              > /tmp/payload.json
+            curl -sS -f -X POST -H "Content-Type: application/json" \
+              -d @/tmp/payload.json "$WEBHOOK" || echo "Discord post failed (non-fatal)"
+          }
+
+          if [ "$action" = "claim" ]; then
+            if [ -n "$current" ] && [ "$current" != "$ACTOR" ]; then
+              body=$(printf '%s\n\n%s\n' \
+                "@$ACTOR this one is already claimed by @$current." \
+                'If they have gone quiet it frees up automatically after 14 days. In the meantime there is plenty else open, or you could comment here and offer to pair on it.')
+              gh issue comment "$NUMBER" --repo "$REPO" --body "$body"
+              echo "Already claimed by $current."
+              exit 0
+            fi
+
+            gh issue edit "$NUMBER" --repo "$REPO" --add-assignee "$ACTOR" || true
+            gh issue edit "$NUMBER" --repo "$REPO" --add-label "in progress" || true
+
+            # GitHub silently drops assignees it won't accept, so verify.
+            got=$(gh issue view "$NUMBER" --repo "$REPO" --json assignees -q '.assignees[].login' | tr '\n' ' ')
+            if printf '%s' "$got" | grep -qw "$ACTOR"; then
+              echo "Assigned to $ACTOR."
+            else
+              echo "Assignment refused by GitHub; the label is the record."
+            fi
+
+            body=$(printf '%s\n\n%s\n' \
+              "Yours, @$ACTOR — thanks for picking it up." \
+              'Open a draft PR whenever you like, even half-finished; it links back here and shows people where you have got to, which beats silence. If you change your mind, comment `.drop` and it goes back in the pool with no hard feelings. Claims that go quiet for 14 days free up automatically.')
+            gh issue comment "$NUMBER" --repo "$REPO" --body "$body"
+
+            post_discord "🛠️ @$ACTOR is now working on #$NUMBER" "#$NUMBER · $TITLE" 951144
+
+          else
+            if [ -z "$current" ]; then
+              echo "Nothing to drop."
+              exit 0
+            fi
+            gh issue edit "$NUMBER" --repo "$REPO" --remove-assignee "$current" || true
+            gh issue edit "$NUMBER" --repo "$REPO" --remove-label "in progress" || true
+            gh issue comment "$NUMBER" --repo "$REPO" --body \
+              "Released — this one is open again. Thanks for saying so, @$ACTOR; that is genuinely useful to know."
+            post_discord "🔓 #$NUMBER is free again — @$ACTOR stepped back" "#$NUMBER · $TITLE" 10197915
+          fi
