@@ -132,8 +132,34 @@ export default defineBackground(() => {
     await setState("idle");
   }
 
+  let popoutWindowId: number | null = null;
+
+  async function openPopout() {
+    if (popoutWindowId != null) {
+      try {
+        await chrome.windows.update(popoutWindowId, { focused: true });
+        return;
+      } catch {
+        popoutWindowId = null; // window was closed
+      }
+    }
+    const win = await chrome.windows.create({
+      url: chrome.runtime.getURL("/popout.html"),
+      type: "popup",
+      width: 420,
+      height: 560,
+      focused: true,
+    });
+    popoutWindowId = win.id ?? null;
+  }
+
+  chrome.windows.onRemoved.addListener((id) => {
+    if (id === popoutWindowId) popoutWindowId = null;
+  });
+
   chrome.commands.onCommand.addListener((command) => {
     if (command === "toggle-dictation") void toggleDictation();
+    if (command === "open-popout") void openPopout();
   });
 
   chrome.runtime.onMessage.addListener(
@@ -142,6 +168,9 @@ export default defineBackground(() => {
       switch (msg.type) {
         case "toggle":
           void toggleDictation();
+          break;
+        case "open-popout":
+          void openPopout();
           break;
         case "get-state":
           sendResponse({ state });

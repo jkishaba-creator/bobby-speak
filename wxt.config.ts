@@ -33,6 +33,10 @@ export default defineConfig({
         },
         description: "Start / stop dictation",
       },
+      "open-popout": {
+        suggested_key: { default: "Ctrl+Shift+O", mac: "Command+Shift+O" },
+        description: "Open the pop-out (dictate for other apps)",
+      },
     },
   },
 });

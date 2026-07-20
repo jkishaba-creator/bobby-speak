@@ -145,6 +145,19 @@
     <button class="pillbtn" onclick={() => hasChrome && chrome.runtime.openOptionsPage()}>
       Settings
     </button>
+    <button
+      class="pillbtn"
+      title="Dictate for other apps — keeps your clipboard loaded"
+      onclick={() => {
+        if (!hasChrome) return;
+        void chrome.runtime
+          .sendMessage({ target: "background", type: "open-popout" })
+          .then(() => window.close())
+          .catch(() => {});
+      }}
+    >
+      Pop-out
+    </button>
     <button class="pillbtn-dark pillbtn ml-auto" onclick={toggle}>
       {phase === "listening" ? "Stop" : "Start"}
     </button>

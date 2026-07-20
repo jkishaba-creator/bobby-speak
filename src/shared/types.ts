@@ -55,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export type BackgroundMessage =
   | { target: "background"; type: "toggle" }
+  | { target: "background"; type: "open-popout" }
   | { target: "background"; type: "get-state" }
   | { target: "background"; type: "level"; levels: LevelFrame }
   | { target: "background"; type: "text"; event: TextEvent }
