@@ -90,8 +90,9 @@ Community project, contributions welcome. Three steps:
 3. Open a PR — one thing at a time.
 
 Details in [CONTRIBUTING.md](CONTRIBUTING.md). Ideas go in
-[Discussions](../../discussions); everything is announced in the project
-Discord. Every change is reviewed and merged by the maintainer.
+[Discussions](../../discussions); everything is announced in the
+[project Discord](https://discord.gg/YdmPAYpR) — come say hi. Every change
+is reviewed and merged by the maintainer.
 
 ## Known limits
 
