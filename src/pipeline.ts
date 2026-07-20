@@ -21,7 +21,7 @@ import { fillersStage } from "./processing/stages/fillers";
 import { spokenPunctuationStage } from "./processing/stages/spoken-punctuation";
 import { capitalizationStage, finalTidyStage } from "./processing/stages/capitalization";
 import { vocabularyStage } from "./processing/stages/vocabulary";
-import { grammarStage } from "./processing/stages/grammar";
+import { grammarStage, warmUpGrammar } from "./processing/stages/grammar";
 import { Emitter, type Stream } from "./shared/stream";
 import type { LevelFrame, Settings, TextEvent } from "./shared/types";
 
@@ -56,6 +56,10 @@ export async function startDictation(
 ): Promise<DictationSession> {
   const events = new Emitter<DictationEvent>();
   const ctx = { settings };
+
+  // Load the on-device model while the user talks, so first-use model
+  // loading never lands on the path between "stop" and text appearing.
+  if (settings.aiPolish !== false) warmUpGrammar();
 
   let capture: AudioCapture;
   try {
@@ -98,12 +102,29 @@ export async function startDictation(
     if (finished) return;
     finished = true;
     capture.stop();
+
+    const t0 = performance.now();
     let transcript = runSyncPipeline(
       SYNC_STAGES,
       { kind: "final", text: committedRaw },
       ctx,
     ).text;
+    const tSync = performance.now();
+
+    const beforePolish = transcript;
     transcript = await runAsyncPipeline(ASYNC_STAGES, transcript, ctx);
+    const tAsync = performance.now();
+
+    // Local-only timing, visible in the offscreen document's console.
+    // Nothing is sent anywhere.
+    console.debug(
+      "[bobby-speak] finish timings — cleanup %sms, polish %sms (%s), total %sms",
+      (tSync - t0).toFixed(0),
+      (tAsync - tSync).toFixed(0),
+      transcript === beforePolish ? "skipped/unchanged" : "applied",
+      (tAsync - t0).toFixed(0),
+    );
+
     events.emit({ type: "done", transcript });
   };
 
@@ -129,7 +150,13 @@ export async function startDictation(
   return {
     events,
     async stop() {
+      const t0 = performance.now();
       await provider.stop(); // batch providers emit their final during stop()
+      console.debug(
+        "[bobby-speak] provider '%s' stop took %sms",
+        provider.id,
+        (performance.now() - t0).toFixed(0),
+      );
       await finish();
     },
   };

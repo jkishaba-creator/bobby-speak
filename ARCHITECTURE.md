@@ -88,6 +88,21 @@ swapped for a model-based one without touching anything else). The
 literal-word guard from v1 PR #3 ships as part of the spoken-punctuation
 stage.
 
+## Latency budget
+
+The path between "user stops" and "text appears" is sacred. Two rules keep it
+short:
+
+- **Sync stages only** on that path by default — they are pure string work,
+  sub-millisecond.
+- **Async stages must beat a deadline** (`POLISH_BUDGET_MS`, 1200 ms). The
+  on-device model is warmed up when dictation *starts*, so first-use model
+  loading overlaps with speaking; if polish still misses the budget it is
+  abandoned and the rule-based text is used. Quality is a bonus, never a stall.
+
+Timings are logged to the offscreen document's console
+(`[bobby-speak] finish timings …`) — local only, nothing is transmitted.
+
 ## Adaptations from the original spec
 
 Differences from the issue-#4 spec, and why:
