@@ -75,17 +75,33 @@ export function chromeSpeechProvider(): AsrProvider {
       recognition.start();
     },
 
-    stop() {
-      active = false;
-      if (recognition) {
-        recognition.onend = null;
-        try {
-          recognition.stop();
-        } catch {
-          /* already stopped */
-        }
+    stop(): Promise<void> {
+      // recognition.stop() is not synchronous: Chrome converts the audio
+      // captured so far into one last FINAL result, delivers it to onresult,
+      // and only then fires onend. Returning before that flush drops the
+      // user's entire last phrase — short dictations lose everything.
+      return new Promise((resolve) => {
+        active = false;
+        const rec = recognition;
         recognition = null;
-      }
+        if (!rec) {
+          resolve();
+          return;
+        }
+        let settled = false;
+        const settle = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        rec.onend = settle; // fires AFTER the final results flush
+        setTimeout(settle, 2000); // hard cap — never hang text insertion
+        try {
+          rec.stop();
+        } catch {
+          settle();
+        }
+      });
     },
   };
 }

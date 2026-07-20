@@ -68,6 +68,8 @@ export function startDictation(settings: Settings): DictationSession {
   let committedRaw = "";
   let finished = false;
   let stopRequested = false;
+  let partialCount = 0;
+  let finalCount = 0;
   const provider: AsrProvider = createProvider(settings.engine);
 
   const emitText = (tentativeRaw: string) => {
@@ -101,11 +103,14 @@ export function startDictation(settings: Settings): DictationSession {
 
     // Local-only timing, visible in the offscreen document's console.
     console.info(
-      "[bobby-speak] finish timings — cleanup %sms, polish %sms (%s), total %sms",
+      "[bobby-speak] finish — %s partials, %s finals from engine; cleanup %sms, polish %sms (%s), total %sms; transcript %s chars",
+      partialCount,
+      finalCount,
       (tSync - t0).toFixed(0),
       (tAsync - tSync).toFixed(0),
       transcript === beforePolish ? "skipped/unchanged" : "applied",
       (tAsync - t0).toFixed(0),
+      transcript.length,
     );
 
     events.emit({ type: "done", transcript });
@@ -138,9 +143,11 @@ export function startDictation(settings: Settings): DictationSession {
       settings,
       emit(event: TextEvent) {
         if (event.kind === "final") {
+          finalCount++;
           committedRaw += event.text;
           emitText("");
         } else {
+          partialCount++;
           emitText(event.text);
         }
       },

@@ -28,6 +28,8 @@ async function ensureSession() {
   try {
     if ((await LanguageModel.availability()) !== "available") return null;
     sessionPromise ??= LanguageModel.create({
+      expectedInputs: [{ type: "text", languages: ["en"] }],
+      expectedOutputs: [{ type: "text", languages: ["en"] }],
       initialPrompts: [
         {
           role: "system",
