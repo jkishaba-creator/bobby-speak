@@ -1,5 +1,7 @@
 # Bobby Speak
 
+JOIN OUR DISCORD TO CONTRIUBTE https://discord.gg/YdmPAYpR
+
 **Voice dictation for the browser — free, open source, and private.**
 Press a shortcut on any page, speak, and cleaned-up text lands at your cursor.
 Or open the pop-out and dictate for *any* app on your machine: your words stay
