@@ -229,7 +229,7 @@
       <label class="flex items-center justify-between gap-3.5 py-3">
         <span>
           <span class="font-semibold">History limit</span>
-          <span class="mt-0.5 block text-[12.5px] text-grey">Transcriptions kept on this device</span>
+          <span class="mt-0.5 block text-[12.5px] text-grey">Kept only on this device, never synced. Set to 0 to keep nothing at all.</span>
         </span>
         <input
           type="number" min="0" max="500" step="5"

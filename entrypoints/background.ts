@@ -136,12 +136,16 @@ export default defineBackground(() => {
         sendToOffscreen({ target: "offscreen", type: "copy", text });
         flashBadge("COPY", 4000);
       }
-      const { history = [] } = await chrome.storage.local.get("history");
-      history.unshift({ text, ts: Date.now() });
-      await chrome.storage.local.set({
-        history: history.slice(0, settings.historyLimit),
-        lastTranscript: text,
-      });
+      // History limit 0 is a real off switch: keep nothing, not even the
+      // popup's "last transcription". Zero means zero.
+      if (settings.historyLimit > 0) {
+        const { history = [] } = await chrome.storage.local.get("history");
+        history.unshift({ text, ts: Date.now() });
+        await chrome.storage.local.set({
+          history: history.slice(0, settings.historyLimit),
+          lastTranscript: text,
+        });
+      }
       // If the pop-out is open, show the result there too — it is the natural
       // place to look when the page couldn't take the insertion.
       chrome.runtime
