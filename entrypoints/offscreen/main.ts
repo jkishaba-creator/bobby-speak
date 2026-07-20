@@ -42,16 +42,25 @@ function send(payload: Record<string, unknown>) {
     .catch(() => {});
 }
 
+let startBeeped = false;
+
 function start(settings: Settings, feedback = false) {
   if (session) return;
   feedbackOn = feedback;
-  if (feedback) beepStart();
+  startBeeped = false;
   // Not awaited: startDictation is synchronous precisely so this subscribe
   // happens before any event (including mic-denied) can be emitted.
   session = startDictation(settings);
   session.events.subscribe((event) => {
     switch (event.type) {
       case "level":
+        // First level frame = the microphone is genuinely flowing. Beep NOW,
+        // not when recording was requested — on a cold start there is a gap,
+        // and a chime that precedes the mic invites clipped first words.
+        if (feedbackOn && !startBeeped) {
+          startBeeped = true;
+          beepStart();
+        }
         send({ type: "level", levels: event.levels });
         break;
       case "text":

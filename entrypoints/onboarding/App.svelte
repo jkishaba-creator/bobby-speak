@@ -221,6 +221,8 @@
       {steps.filter(Boolean).length}/3 complete · Works out of the box with
       Chrome's speech engine — switch to Whisper or Deepgram Flux any time in
       Settings. No account, no telemetry; transcripts stay on this device.
+      Bobby Speak lives inside Chrome: Chrome can be in the background, but it
+      must be running.
     </footer>
   </div>
 </main>
