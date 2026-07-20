@@ -12,10 +12,18 @@ import type { AsyncStage } from "../processor";
 
 declare const LanguageModel:
   | {
-      availability(): Promise<string>;
+      availability(opts?: unknown): Promise<string>;
       create(opts: unknown): Promise<{ prompt(text: string): Promise<string> }>;
     }
   | undefined;
+
+// Chrome wants the output language declared on EVERY LanguageModel request —
+// availability probes included — or it logs a warning to the extension's
+// error panel.
+const LANGUAGE_OPTS = {
+  expectedInputs: [{ type: "text", languages: ["en"] }],
+  expectedOutputs: [{ type: "text", languages: ["en"] }],
+};
 
 /** Polish must finish inside this budget or it is abandoned. */
 export const POLISH_BUDGET_MS = 1200;
@@ -26,10 +34,11 @@ let sessionPromise: Promise<{ prompt(t: string): Promise<string> }> | null =
 async function ensureSession() {
   if (typeof LanguageModel === "undefined") return null;
   try {
-    if ((await LanguageModel.availability()) !== "available") return null;
+    if ((await LanguageModel.availability(LANGUAGE_OPTS)) !== "available") {
+      return null;
+    }
     sessionPromise ??= LanguageModel.create({
-      expectedInputs: [{ type: "text", languages: ["en"] }],
-      expectedOutputs: [{ type: "text", languages: ["en"] }],
+      ...LANGUAGE_OPTS,
       initialPrompts: [
         {
           role: "system",

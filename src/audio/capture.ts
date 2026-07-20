@@ -19,6 +19,54 @@ export class MicDeniedError extends Error {
   }
 }
 
+// Tap raw Float32 samples from the mic. AudioWorklet is the modern path
+// (ScriptProcessor is deprecated and its warning shows up in the
+// chrome://extensions error panel); the fallback keeps stubbed test
+// environments and any worklet-less context working.
+async function attachFrameTap(
+  audioCtx: AudioContext,
+  source: MediaStreamAudioSourceNode,
+  onSamples: (chunk: Float32Array) => void,
+): Promise<() => void> {
+  try {
+    if (audioCtx.audioWorklet) {
+      await audioCtx.audioWorklet.addModule("/pcm-tap.worklet.js");
+      const node = new AudioWorkletNode(audioCtx, "pcm-tap");
+      node.port.onmessage = (e: MessageEvent<Float32Array>) => onSamples(e.data);
+      source.connect(node);
+      node.connect(audioCtx.destination); // outputs are silent; drives processing
+      return () => {
+        node.port.onmessage = null;
+        try {
+          source.disconnect(node);
+          node.disconnect();
+        } catch {
+          /* already torn down */
+        }
+      };
+    }
+  } catch {
+    /* fall through to ScriptProcessor */
+  }
+  const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+  const mute = audioCtx.createGain();
+  mute.gain.value = 0;
+  proc.onaudioprocess = (e) => onSamples(e.inputBuffer.getChannelData(0));
+  source.connect(proc);
+  proc.connect(mute);
+  mute.connect(audioCtx.destination);
+  return () => {
+    proc.onaudioprocess = null;
+    try {
+      source.disconnect(proc);
+      proc.disconnect();
+      mute.disconnect();
+    } catch {
+      /* already torn down */
+    }
+  };
+}
+
 export async function startCapture(): Promise<AudioCapture> {
   let mediaStream: MediaStream;
   try {
@@ -32,22 +80,12 @@ export async function startCapture(): Promise<AudioCapture> {
   const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(mediaStream);
 
-  // Frame tap. ScriptProcessor is deprecated but is the one API that works
-  // identically in offscreen documents and normal pages; an AudioWorklet
-  // replacement is isolated behind this module's interface.
-  const proc = audioCtx.createScriptProcessor(4096, 1, 1);
-  const mute = audioCtx.createGain();
-  mute.gain.value = 0;
-  proc.onaudioprocess = (e) => {
-    const samples = downsampleTo16k(
-      e.inputBuffer.getChannelData(0),
-      audioCtx.sampleRate,
-    );
-    frames.emit({ samples, sampleRate: 16000 });
-  };
-  source.connect(proc);
-  proc.connect(mute);
-  mute.connect(audioCtx.destination);
+  const untap = await attachFrameTap(audioCtx, source, (chunk) => {
+    frames.emit({
+      samples: downsampleTo16k(chunk, audioCtx.sampleRate),
+      sampleRate: 16000,
+    });
+  });
 
   // Level meter for the overlay waveform, ~12 fps.
   const analyser = audioCtx.createAnalyser();
@@ -78,14 +116,7 @@ export async function startCapture(): Promise<AudioCapture> {
     mediaStream,
     stop() {
       cancelAnimationFrame(rafId);
-      proc.onaudioprocess = null;
-      try {
-        source.disconnect();
-        proc.disconnect();
-        mute.disconnect();
-      } catch {
-        /* already torn down */
-      }
+      untap();
       void audioCtx.close().catch(() => {});
       mediaStream.getTracks().forEach((t) => t.stop());
       frames.clear();
