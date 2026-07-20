@@ -51,9 +51,12 @@ export interface DictationSession {
   stop(): Promise<void>;
 }
 
-export async function startDictation(
-  settings: Settings,
-): Promise<DictationSession> {
+// NOTE: synchronous by design. If this returned a promise, a caller doing
+// `const s = await startDictation(); s.events.subscribe(...)` would miss any
+// event emitted during setup — which is exactly how a denied microphone used
+// to vanish silently. Returning synchronously guarantees the caller can
+// subscribe before anything can fire.
+export function startDictation(settings: Settings): DictationSession {
   const events = new Emitter<DictationEvent>();
   const ctx = { settings };
 
@@ -61,28 +64,11 @@ export async function startDictation(
   // loading never lands on the path between "stop" and text appearing.
   if (settings.aiPolish !== false) warmUpGrammar();
 
-  let capture: AudioCapture;
-  try {
-    capture = await startCapture();
-  } catch (err) {
-    // Report through the stream so callers have one error path.
-    queueMicrotask(() =>
-      events.emit(
-        err instanceof MicDeniedError
-          ? { type: "mic-denied" }
-          : { type: "error", message: String(err) },
-      ),
-    );
-    return { events, stop: async () => {} };
-  }
-
-  capture.levels.subscribe((levels) => events.emit({ type: "level", levels }));
-
-  // Raw committed text accumulates; every emission re-runs the sync pipeline
-  // over the whole committed text so cross-phrase rules (capitalization after
-  // a previous final's period) stay correct.
+  let capture: AudioCapture | null = null;
   let committedRaw = "";
   let finished = false;
+  let stopRequested = false;
+  const provider: AsrProvider = createProvider(settings.engine);
 
   const emitText = (tentativeRaw: string) => {
     const committed = runSyncPipeline(
@@ -96,12 +82,10 @@ export async function startDictation(
     events.emit({ type: "text", committed, tentative });
   };
 
-  const provider: AsrProvider = createProvider(settings.engine);
-
   const finish = async () => {
     if (finished) return;
     finished = true;
-    capture.stop();
+    capture?.stop();
 
     const t0 = performance.now();
     let transcript = runSyncPipeline(
@@ -116,7 +100,6 @@ export async function startDictation(
     const tAsync = performance.now();
 
     // Local-only timing, visible in the offscreen document's console.
-    // Nothing is sent anywhere.
     console.debug(
       "[bobby-speak] finish timings — cleanup %sms, polish %sms (%s), total %sms",
       (tSync - t0).toFixed(0),
@@ -128,28 +111,55 @@ export async function startDictation(
     events.emit({ type: "done", transcript });
   };
 
-  provider.start({
-    audio: capture.frames,
-    mediaStream: capture.mediaStream,
-    settings,
-    emit(event: TextEvent) {
-      if (event.kind === "final") {
-        committedRaw += event.text;
-        emitText("");
-      } else {
-        emitText(event.text);
-      }
-    },
-    error(message: string) {
+  // Setup runs after this function returns, so subscribers are already
+  // attached by the time anything is emitted.
+  const ready = (async () => {
+    try {
+      capture = await startCapture();
+    } catch (err) {
+      events.emit(
+        err instanceof MicDeniedError
+          ? { type: "mic-denied" }
+          : { type: "error", message: String(err) },
+      );
+      return false;
+    }
+
+    if (stopRequested) {
       capture.stop();
-      if (message === "mic-denied") events.emit({ type: "mic-denied" });
-      else events.emit({ type: "error", message });
-    },
-  });
+      return false;
+    }
+
+    capture.levels.subscribe((levels) => events.emit({ type: "level", levels }));
+
+    provider.start({
+      audio: capture.frames,
+      mediaStream: capture.mediaStream,
+      settings,
+      emit(event: TextEvent) {
+        if (event.kind === "final") {
+          committedRaw += event.text;
+          emitText("");
+        } else {
+          emitText(event.text);
+        }
+      },
+      error(message: string) {
+        capture?.stop();
+        if (message === "mic-denied") events.emit({ type: "mic-denied" });
+        else events.emit({ type: "error", message });
+      },
+    });
+    return true;
+  })();
 
   return {
     events,
     async stop() {
+      stopRequested = true;
+      const started = await ready;
+      if (!started) return; // never got a microphone; nothing to finalize
+
       const t0 = performance.now();
       await provider.stop(); // batch providers emit their final during stop()
       console.debug(
@@ -161,3 +171,4 @@ export async function startDictation(
     },
   };
 }
+

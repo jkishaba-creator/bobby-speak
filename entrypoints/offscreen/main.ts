@@ -13,9 +13,11 @@ function send(payload: Record<string, unknown>) {
     .catch(() => {});
 }
 
-async function start(settings: Settings) {
+function start(settings: Settings) {
   if (session) return;
-  session = await startDictation(settings);
+  // Not awaited: startDictation is synchronous precisely so this subscribe
+  // happens before any event (including mic-denied) can be emitted.
+  session = startDictation(settings);
   session.events.subscribe((event) => {
     switch (event.type) {
       case "level":
@@ -56,7 +58,7 @@ function copyText(text: string) {
 
 chrome.runtime.onMessage.addListener((msg: OffscreenMessage) => {
   if (!msg || msg.target !== "offscreen") return;
-  if (msg.type === "start") void start(msg.settings);
+  if (msg.type === "start") start(msg.settings);
   if (msg.type === "stop") void session?.stop();
   if (msg.type === "copy") copyText(msg.text);
 });
