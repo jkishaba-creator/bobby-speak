@@ -56,6 +56,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export type BackgroundMessage =
   | { target: "background"; type: "toggle" }
   | { target: "background"; type: "open-popout" }
+  | { target: "background"; type: "copy-request"; text: string }
   | { target: "background"; type: "get-state" }
   | { target: "background"; type: "level"; levels: LevelFrame }
   | { target: "background"; type: "text"; event: TextEvent }
@@ -64,7 +65,7 @@ export type BackgroundMessage =
   | { target: "background"; type: "engine-error"; message: string };
 
 export type OffscreenMessage =
-  | { target: "offscreen"; type: "start"; settings: Settings }
+  | { target: "offscreen"; type: "start"; settings: Settings; feedback?: boolean }
   | { target: "offscreen"; type: "stop" }
   | { target: "offscreen"; type: "copy"; text: string };
 

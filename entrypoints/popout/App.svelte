@@ -38,8 +38,21 @@
       pendingCopy = null;
       setClip("On clipboard — " + pasteKey + " anywhere", "ok");
     } catch {
-      pendingCopy = text; // clipboard needs window focus; retry on refocus
-      setClip("Refocus this window to copy", "err");
+      // Direct writes need window focus. Route through the offscreen
+      // document instead — its clipboard write works unfocused — so the
+      // clipboard stays loaded while the user works in another app.
+      if (hasChrome) {
+        chrome.runtime
+          .sendMessage({ target: "background", type: "copy-request", text })
+          .then(() => setClip("On clipboard — " + pasteKey + " anywhere", "ok"))
+          .catch(() => {
+            pendingCopy = text;
+            setClip("Refocus this window to copy", "err");
+          });
+      } else {
+        pendingCopy = text;
+        setClip("Refocus this window to copy", "err");
+      }
     }
   }
 

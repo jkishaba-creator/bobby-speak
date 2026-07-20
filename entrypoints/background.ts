@@ -15,6 +15,10 @@ export default defineBackground(() => {
   let state: State = "idle";
   let targetTabId: number | null = null;
   let tabReachable = false;
+  // Clipboard mode: dictation started from ANOTHER app via the global
+  // shortcut. No tab, no overlay — the result goes to the clipboard and the
+  // offscreen document beeps so the user gets feedback without seeing Chrome.
+  let clipboardMode = false;
 
   async function setState(next: State) {
     state = next;
@@ -87,28 +91,39 @@ export default defineBackground(() => {
     setTimeout(() => chrome.action.setBadgeText({ text: "" }).catch(() => {}), ms);
   }
 
-  async function startDictation() {
+  async function startDictation(clipboard = false) {
     if (state !== "idle") return;
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    targetTabId = tab?.id ?? null;
-    tabReachable = await ensureContentScript(targetTabId);
+    clipboardMode = clipboard;
+    if (clipboard) {
+      targetTabId = null;
+      tabReachable = false;
+    } else {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTabId = tab?.id ?? null;
+      tabReachable = await ensureContentScript(targetTabId);
+    }
     const settings = await getSettings();
     await ensureOffscreen();
     await setState("listening");
-    sendToTab({ type: "overlay-show" });
-    sendToOffscreen({ target: "offscreen", type: "start", settings });
+    if (!clipboard) sendToTab({ type: "overlay-show" });
+    sendToOffscreen({
+      target: "offscreen",
+      type: "start",
+      settings,
+      feedback: clipboard,
+    });
   }
 
   async function stopDictation() {
     if (state !== "listening") return;
     await setState("processing");
-    sendToTab({ type: "overlay-processing" });
+    if (!clipboardMode) sendToTab({ type: "overlay-processing" });
     sendToOffscreen({ target: "offscreen", type: "stop" });
   }
 
-  async function toggleDictation() {
+  async function toggleDictation(clipboard = false) {
     if (state === "listening") await stopDictation();
-    else if (state === "idle") await startDictation();
+    else if (state === "idle") await startDictation(clipboard);
   }
 
   async function finishWithTranscript(transcript: string) {
@@ -184,6 +199,7 @@ export default defineBackground(() => {
   chrome.commands.onCommand.addListener((command) => {
     if (command === "toggle-dictation") void toggleFromCommand();
     if (command === "open-popout") void openPopout();
+    if (command === "dictate-from-anywhere") void toggleDictation(true);
   });
 
   chrome.runtime.onMessage.addListener(
@@ -195,6 +211,14 @@ export default defineBackground(() => {
           break;
         case "open-popout":
           void openPopout();
+          break;
+        case "copy-request":
+          // Pop-out asking for an unfocused-safe clipboard write: the
+          // offscreen document's execCommand copy works without focus.
+          void (async () => {
+            await ensureOffscreen();
+            sendToOffscreen({ target: "offscreen", type: "copy", text: msg.text });
+          })();
           break;
         case "get-state":
           sendResponse({ state });

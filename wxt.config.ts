@@ -37,6 +37,13 @@ export default defineConfig({
         suggested_key: { default: "Ctrl+Shift+O", mac: "Command+Shift+O" },
         description: "Open the pop-out (dictate for other apps)",
       },
+      // Global commands fire even when Chrome is NOT the focused app.
+      // Chrome restricts them to Ctrl/Command+Shift+0-9.
+      "dictate-from-anywhere": {
+        suggested_key: { default: "Ctrl+Shift+1", mac: "Command+Shift+1" },
+        description: "Dictate from ANY app — result lands on the clipboard",
+        global: true,
+      },
     },
   },
 });
