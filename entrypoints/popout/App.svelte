@@ -51,6 +51,22 @@
     return () => window.removeEventListener("focus", onFocus);
   });
 
+  // The background routes the global shortcut here while this window is
+  // focused, and mirrors page-flow transcripts here for display.
+  $effect(() => {
+    if (!hasChrome) return;
+    const onMessage = (msg: { target?: string; type?: string; text?: string }) => {
+      if (msg?.target !== "popout") return;
+      if (msg.type === "toggle") toggle();
+      if (msg.type === "transcript" && msg.text && !listening) {
+        transcriptText = msg.text;
+        setClip("On clipboard — " + pasteKey + " anywhere", "ok");
+      }
+    };
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
+  });
+
   function setClip(message: string, tone: "idle" | "ok" | "err") {
     clipMessage = message;
     clipTone = tone;

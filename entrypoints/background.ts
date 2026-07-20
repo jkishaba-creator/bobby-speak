@@ -127,6 +127,11 @@ export default defineBackground(() => {
         history: history.slice(0, settings.historyLimit),
         lastTranscript: text,
       });
+      // If the pop-out is open, show the result there too — it is the natural
+      // place to look when the page couldn't take the insertion.
+      chrome.runtime
+        .sendMessage({ target: "popout", type: "transcript", text })
+        .catch(() => {});
     }
     sendToTab({ type: "overlay-hide" });
     await setState("idle");
@@ -157,8 +162,27 @@ export default defineBackground(() => {
     if (id === popoutWindowId) popoutWindowId = null;
   });
 
+  // The global shortcut should control whatever the user is looking at:
+  // if the pop-out window is focused, toggle ITS session, not the page flow.
+  async function toggleFromCommand() {
+    if (popoutWindowId != null) {
+      try {
+        const focused = await chrome.windows.getLastFocused();
+        if (focused.id === popoutWindowId) {
+          chrome.runtime
+            .sendMessage({ target: "popout", type: "toggle" })
+            .catch(() => {});
+          return;
+        }
+      } catch {
+        /* fall through to the page flow */
+      }
+    }
+    void toggleDictation();
+  }
+
   chrome.commands.onCommand.addListener((command) => {
-    if (command === "toggle-dictation") void toggleDictation();
+    if (command === "toggle-dictation") void toggleFromCommand();
     if (command === "open-popout") void openPopout();
   });
 
