@@ -23,6 +23,18 @@ export type LevelFrame = number[];
 
 export type EngineId = "chrome" | "cf-whisper" | "cf-flux";
 
+/** A user-authored one-tap AI chip. `prompt` is plain English; the runtime
+ *  wraps it before sending (see textActions.ts). `id` is bare — the action
+ *  catalog prefixes it with "custom-". */
+export interface CustomAction {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+/** How the result should sound. "none" leaves the wording untouched. */
+export type ToneId = "none" | "professional" | "direct" | "confident";
+
 export interface Settings {
   engine: EngineId;
   language: string;
@@ -36,6 +48,14 @@ export interface Settings {
   cfAccountId: string;
   cfApiToken: string;
   cfGateway: string;
+  /** User-created one-tap chips, in creation order. */
+  customActions: CustomAction[];
+  /** Action ids (built-in or "custom-…") the user has hidden from the row. */
+  hiddenActions: string[];
+  /** Action ids in display order; ids not listed fall back to catalog order. */
+  actionOrder: string[];
+  /** Voice appended to toneable actions; "none" appends nothing. */
+  tone: ToneId;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -51,6 +71,10 @@ export const DEFAULT_SETTINGS: Settings = {
   cfAccountId: "",
   cfApiToken: "",
   cfGateway: "",
+  customActions: [],
+  hiddenActions: [],
+  actionOrder: [],
+  tone: "none",
 };
 
 // ---------------------------------------------------------------------------

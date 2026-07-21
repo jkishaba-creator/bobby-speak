@@ -3,11 +3,20 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CUSTOM_ACTION_LIMITS,
   TEXT_ACTIONS,
+  TONES,
+  resolveActions,
   runTextAction,
+  sanitizeCustomAction,
+  wrapCustomPrompt,
   type TextAction,
 } from "../src/ai/textActions";
-import { DEFAULT_SETTINGS, type Settings } from "../src/shared/types";
+import {
+  DEFAULT_SETTINGS,
+  type CustomAction,
+  type Settings,
+} from "../src/shared/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {
@@ -152,6 +161,206 @@ describe("runTextAction", () => {
     vi.stubGlobal("fetch", mockResponse('"Sharper version."'));
     const res = await runTextAction(action("sharpen"), "a wordy version", settings());
     expect(res).toEqual({ ok: true, text: "Sharper version." });
+  });
+});
+
+// Capture the system prompt actually sent for a given action + settings.
+async function systemSentFor(
+  act: TextAction,
+  over: Partial<Settings> = {},
+): Promise<string> {
+  let captured = "";
+  const fetchMock = vi.fn(async (_url: string, init: any) => {
+    captured = JSON.parse(init.body).messages[0].content;
+    return { status: 200, json: async () => ({ success: true, result: { response: "ok" } }) };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  await runTextAction(act, "some text", settings(over), "a question?");
+  return captured;
+}
+
+const custom = (over: Partial<CustomAction> = {}): CustomAction => ({
+  id: "abc",
+  label: "Emojify",
+  prompt: "Add fitting emoji to the text",
+  ...over,
+});
+
+describe("resolveActions", () => {
+  it("defaults to exactly the built-ins, in catalog order", () => {
+    expect(resolveActions(settings()).map((a) => a.id)).toEqual([
+      "clean",
+      "summarize",
+      "sharpen",
+      "ask",
+    ]);
+  });
+
+  it("appends custom chips with a prefixed id and the custom flag", () => {
+    const list = resolveActions(settings({ customActions: [custom()] }));
+    const chip = list.find((a) => a.id === "custom-abc")!;
+    expect(chip).toBeTruthy();
+    expect(chip.label).toBe("Emojify");
+    expect(chip.custom).toBe(true);
+    expect(chip.toneable).toBe(true);
+  });
+
+  it("removes hidden ids", () => {
+    const list = resolveActions(settings({ hiddenActions: ["summarize", "ask"] }));
+    expect(list.map((a) => a.id)).toEqual(["clean", "sharpen"]);
+  });
+
+  it("respects actionOrder and appends unlisted ids in catalog order", () => {
+    const list = resolveActions(
+      settings({
+        customActions: [custom()],
+        actionOrder: ["custom-abc", "ask"],
+      }),
+    );
+    expect(list.map((a) => a.id)).toEqual([
+      "custom-abc",
+      "ask",
+      "clean",
+      "summarize",
+      "sharpen",
+    ]);
+  });
+
+  it("ignores unknown ids in actionOrder", () => {
+    const list = resolveActions(settings({ actionOrder: ["nope", "sharpen"] }));
+    expect(list.map((a) => a.id)).toEqual([
+      "sharpen",
+      "clean",
+      "summarize",
+      "ask",
+    ]);
+  });
+
+  it("hides a custom chip by its prefixed id", () => {
+    const list = resolveActions(
+      settings({ customActions: [custom()], hiddenActions: ["custom-abc"] }),
+    );
+    expect(list.some((a) => a.id === "custom-abc")).toBe(false);
+  });
+});
+
+describe("custom chip prompt wrapping", () => {
+  it("wraps the plain instruction with the only-the-text suffix", () => {
+    const wrapped = wrapCustomPrompt("Add fitting emoji to the text");
+    expect(wrapped).toBe(
+      "Add fitting emoji to the text\n\nReply with ONLY the resulting text — no preamble, no quotes.",
+    );
+  });
+
+  it("sends the wrapped prompt as the system message", async () => {
+    const [chip] = resolveActions(settings({ customActions: [custom()] })).filter(
+      (a) => a.id === "custom-abc",
+    );
+    const sent = await systemSentFor(chip);
+    expect(sent).toContain("Add fitting emoji to the text");
+    expect(sent).toContain("Reply with ONLY the resulting text");
+  });
+});
+
+describe("tone", () => {
+  it("exposes none/professional/direct/confident", () => {
+    expect(TONES.map((t) => t.id)).toEqual([
+      "none",
+      "professional",
+      "direct",
+      "confident",
+    ]);
+  });
+
+  it("appends a tone line to clean and sharpen", async () => {
+    for (const id of ["clean", "sharpen"]) {
+      const sent = await systemSentFor(action(id), { tone: "professional" });
+      expect(sent).toContain("Write the result in a professional tone.");
+    }
+  });
+
+  it("appends a tone line to custom chips", async () => {
+    const [chip] = resolveActions(settings({ customActions: [custom()] })).filter(
+      (a) => a.id === "custom-abc",
+    );
+    const sent = await systemSentFor(chip, { tone: "direct" });
+    expect(sent).toContain("Write the result in a direct tone.");
+  });
+
+  it("never applies tone to summarize or ask", async () => {
+    for (const id of ["summarize", "ask"]) {
+      const sent = await systemSentFor(action(id), { tone: "confident" });
+      expect(sent).toBe(action(id).system);
+      expect(sent).not.toContain("tone.");
+    }
+  });
+
+  it("appends nothing when tone is none", async () => {
+    const sent = await systemSentFor(action("clean"), { tone: "none" });
+    expect(sent).toBe(action("clean").system);
+  });
+});
+
+describe("sanitizeCustomAction", () => {
+  it("trims label and prompt and mints an id for a new chip", () => {
+    const res = sanitizeCustomAction({ label: "  Emojify  ", prompt: "  add emoji  " });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.action.label).toBe("Emojify");
+      expect(res.action.prompt).toBe("add emoji");
+      expect(res.action.id).toBeTruthy();
+    }
+  });
+
+  it("rejects an empty label or prompt", () => {
+    expect(sanitizeCustomAction({ label: "   ", prompt: "x" }).ok).toBe(false);
+    expect(sanitizeCustomAction({ label: "x", prompt: "  " }).ok).toBe(false);
+  });
+
+  it("rejects a label over the limit", () => {
+    const res = sanitizeCustomAction({
+      label: "x".repeat(CUSTOM_ACTION_LIMITS.maxLabel + 1),
+      prompt: "ok",
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("accepts a label exactly at the limit", () => {
+    const res = sanitizeCustomAction({
+      label: "x".repeat(CUSTOM_ACTION_LIMITS.maxLabel),
+      prompt: "ok",
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects a prompt over the limit", () => {
+    const res = sanitizeCustomAction({
+      label: "ok",
+      prompt: "x".repeat(CUSTOM_ACTION_LIMITS.maxPrompt + 1),
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("caps the number of custom chips", () => {
+    const existing: CustomAction[] = Array.from(
+      { length: CUSTOM_ACTION_LIMITS.maxCount },
+      (_, i) => custom({ id: `id${i}` }),
+    );
+    const res = sanitizeCustomAction({ label: "One More", prompt: "do it" }, existing);
+    expect(res.ok).toBe(false);
+  });
+
+  it("lets an existing chip be edited without counting against the cap", () => {
+    const existing: CustomAction[] = Array.from(
+      { length: CUSTOM_ACTION_LIMITS.maxCount },
+      (_, i) => custom({ id: `id${i}` }),
+    );
+    const res = sanitizeCustomAction(
+      { id: "id0", label: "Edited", prompt: "changed" },
+      existing,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.action.id).toBe("id0");
   });
 });
 

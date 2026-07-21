@@ -3,6 +3,13 @@
   // keys — upgrading from v1 keeps every preference.
   import { getSettings, saveSettings } from "../../src/shared/settings";
   import { DEFAULT_SETTINGS, type EngineId, type Settings } from "../../src/shared/types";
+  import {
+    TONES,
+    resolveActions,
+    sanitizeCustomAction,
+    CUSTOM_ACTION_LIMITS,
+    type TextAction,
+  } from "../../src/ai/textActions";
 
   const hasChrome =
     typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
@@ -105,6 +112,85 @@
       settings.aiPolish = true;
       settings.polishProvider = choice as "chrome" | "cloudflare";
     }
+    persist();
+  }
+
+  // --- AI action chips ----------------------------------------------------
+  // Prefix the catalog puts on custom ids; matches customToTextAction.
+  const CUSTOM_PREFIX = "custom-";
+
+  // Same merge/order as resolveActions, but WITHOUT the hidden filter — the
+  // editor lists every action so hidden ones can be toggled back on.
+  const allActions = $derived<TextAction[]>(
+    resolveActions({ ...settings, hiddenActions: [] }),
+  );
+
+  function toggleAction(id: string) {
+    settings.hiddenActions = settings.hiddenActions.includes(id)
+      ? settings.hiddenActions.filter((x) => x !== id)
+      : [...settings.hiddenActions, id];
+    persist();
+  }
+
+  // Reorder by rewriting the full id list, so the new order always persists.
+  function moveAction(index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= allActions.length) return;
+    const ids = allActions.map((a) => a.id);
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    settings.actionOrder = ids;
+    persist();
+  }
+
+  // Add / edit form.
+  let actionLabel = $state("");
+  let actionPrompt = $state("");
+  let actionError = $state("");
+  let editingId: string | null = $state(null); // bare custom id, or null
+
+  const atCustomLimit = $derived(
+    settings.customActions.length >= CUSTOM_ACTION_LIMITS.maxCount,
+  );
+
+  function submitAction() {
+    const res = sanitizeCustomAction(
+      { id: editingId ?? undefined, label: actionLabel, prompt: actionPrompt },
+      settings.customActions,
+    );
+    if (!res.ok) { actionError = res.error; return; }
+    const list = settings.customActions.slice();
+    const idx = list.findIndex((c) => c.id === res.action.id);
+    if (idx >= 0) list[idx] = res.action;
+    else list.push(res.action);
+    settings.customActions = list;
+    cancelEdit();
+    persist();
+  }
+
+  function startEdit(action: TextAction) {
+    const bareId = action.id.slice(CUSTOM_PREFIX.length);
+    const c = settings.customActions.find((x) => x.id === bareId);
+    if (!c) return;
+    editingId = c.id;
+    actionLabel = c.label;
+    actionPrompt = c.prompt;
+    actionError = "";
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    actionLabel = "";
+    actionPrompt = "";
+    actionError = "";
+  }
+
+  function deleteCustom(action: TextAction) {
+    const bareId = action.id.slice(CUSTOM_PREFIX.length);
+    settings.customActions = settings.customActions.filter((c) => c.id !== bareId);
+    // Drop any stale references so a reused id can't inherit old state.
+    settings.hiddenActions = settings.hiddenActions.filter((x) => x !== action.id);
+    settings.actionOrder = settings.actionOrder.filter((x) => x !== action.id);
+    if (editingId === bareId) cancelEdit();
     persist();
   }
 </script>
@@ -312,6 +398,127 @@
           {/if}
         </div>
       {/if}
+    </section>
+
+    <!-- AI actions -->
+    <section class="rounded-[22px] bg-screen px-5 py-4 shadow-sm">
+      <h2 class="mb-1 text-[13px] font-bold uppercase tracking-wider text-grey">AI actions</h2>
+      <p class="text-[12.5px] text-grey">
+        The one-tap chips shown under a transcript. Reorder, hide, or add your
+        own — built-ins stay put but can be hidden.
+      </p>
+
+      <!-- Tone -->
+      <div class="mt-3 flex items-center justify-between gap-3.5 border-b border-line pb-3.5">
+        <span>
+          <span class="font-semibold">Tone</span>
+          <span class="mt-0.5 block text-[12.5px] text-grey">Applied to Clean, Sharpen, and your custom chips</span>
+        </span>
+        <div class="flex flex-wrap justify-end gap-1.5">
+          {#each TONES as t (t.id)}
+            <button
+              class="rounded-pill px-3 py-1.5 text-[12.5px] font-semibold shadow-sm transition-transform duration-100 active:scale-95"
+              class:bg-accent={settings.tone === t.id}
+              class:text-white={settings.tone === t.id}
+              class:bg-face={settings.tone !== t.id}
+              aria-pressed={settings.tone === t.id}
+              onclick={() => { settings.tone = t.id; persist(); }}
+            >{t.label}</button>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Action list (all actions, incl. hidden) -->
+      {#each allActions as action, i (action.id)}
+        <div class="flex items-center justify-between gap-3.5 border-b border-line py-3">
+          <span class="min-w-0">
+            <span class="font-semibold">
+              {action.label}
+              {#if action.custom}
+                <span class="ml-1.5 rounded border border-line bg-face px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-grey">
+                  custom
+                </span>
+              {/if}
+            </span>
+            <span class="mt-0.5 block truncate text-[12.5px] text-grey">{action.hint}</span>
+          </span>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <!-- Reorder -->
+            <button
+              class="grid h-[26px] w-[26px] place-items-center rounded-lg bg-face text-[13px] text-grey shadow-sm hover:text-ink disabled:opacity-30 disabled:hover:text-grey"
+              aria-label={"Move " + action.label + " up"}
+              disabled={i === 0}
+              onclick={() => moveAction(i, -1)}
+            >↑</button>
+            <button
+              class="grid h-[26px] w-[26px] place-items-center rounded-lg bg-face text-[13px] text-grey shadow-sm hover:text-ink disabled:opacity-30 disabled:hover:text-grey"
+              aria-label={"Move " + action.label + " down"}
+              disabled={i === allActions.length - 1}
+              onclick={() => moveAction(i, 1)}
+            >↓</button>
+            {#if action.custom}
+              <button
+                class="pillbtn !px-3 !py-1.5 !text-[12px]"
+                onclick={() => startEdit(action)}
+              >Edit</button>
+              <button
+                class="grid h-[26px] w-[26px] place-items-center rounded-full bg-panel text-[11px] text-grey hover:text-ink"
+                aria-label={"Delete " + action.label}
+                onclick={() => deleteCustom(action)}
+              >✕</button>
+            {/if}
+            <!-- On/off (hidden) toggle. Knob position is flex-driven, not transform. -->
+            <button
+              role="switch" aria-checked={!settings.hiddenActions.includes(action.id)}
+              aria-label={"Show " + action.label}
+              class="flex h-[23px] w-10 shrink-0 items-center rounded-full px-[2.5px] transition-colors"
+              class:justify-end={!settings.hiddenActions.includes(action.id)}
+              class:bg-accent={!settings.hiddenActions.includes(action.id)}
+              class:bg-line={settings.hiddenActions.includes(action.id)}
+              onclick={() => toggleAction(action.id)}
+            >
+              <span class="h-[18px] w-[18px] rounded-full bg-white shadow"></span>
+            </button>
+          </div>
+        </div>
+      {/each}
+
+      <!-- Add / edit form -->
+      <div class="mt-3 flex flex-col gap-2.5">
+        <span class="text-[12.5px] font-semibold text-grey">
+          {editingId ? "Edit chip" : "Add a chip"}
+        </span>
+        <input
+          class="w-full rounded-xl border border-line bg-face px-3 py-1.5 text-[13.5px]"
+          placeholder="Button name" maxlength={CUSTOM_ACTION_LIMITS.maxLabel}
+          bind:value={actionLabel}
+        />
+        <textarea
+          class="min-h-[68px] w-full resize-y rounded-xl border border-line bg-face px-3 py-1.5 text-[13.5px]"
+          placeholder="What should it do? e.g. Translate this into Spanish."
+          maxlength={CUSTOM_ACTION_LIMITS.maxPrompt}
+          bind:value={actionPrompt}
+        ></textarea>
+        {#if actionError}
+          <p class="text-[12.5px] font-semibold text-accent">{actionError}</p>
+        {/if}
+        {#if atCustomLimit && !editingId}
+          <p class="rounded-lg bg-panel px-3 py-2 text-[12.5px] text-grey">
+            You've reached {CUSTOM_ACTION_LIMITS.maxCount} custom chips — edit or
+            remove one to add another.
+          </p>
+        {/if}
+        <div class="flex items-center gap-2.5">
+          <button
+            class="pillbtn pillbtn-dark disabled:cursor-default disabled:opacity-40"
+            disabled={atCustomLimit && !editingId}
+            onclick={submitAction}
+          >{editingId ? "Save" : "Add action"}</button>
+          {#if editingId}
+            <button class="pillbtn" onclick={cancelEdit}>Cancel</button>
+          {/if}
+        </div>
+      </div>
     </section>
 
     <!-- Custom words -->

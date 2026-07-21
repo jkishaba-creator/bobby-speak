@@ -6,9 +6,15 @@
   // apps. Ported from v1; same Air OS look, v2 wiring underneath.
 
   import { startDictation, type DictationSession } from "../../src/pipeline";
-  import { getSettings } from "../../src/shared/settings";
-  import { DEFAULT_SETTINGS, type Settings } from "../../src/shared/types";
-  import { TEXT_ACTIONS, runTextAction, type TextAction } from "../../src/ai/textActions";
+  import { getSettings, saveSettings } from "../../src/shared/settings";
+  import { DEFAULT_SETTINGS, type Settings, type ToneId } from "../../src/shared/types";
+  import {
+    TEXT_ACTIONS,
+    TONES,
+    resolveActions,
+    runTextAction,
+    type TextAction,
+  } from "../../src/ai/textActions";
 
   const hasChrome =
     typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
@@ -34,6 +40,24 @@
   (async () => {
     if (hasChrome) settings = await getSettings();
   })();
+
+  // Keep the chip row and tone in sync when the options page (or another
+  // window) edits the customized action set while this pop-out is open.
+  $effect(() => {
+    if (!hasChrome || !chrome.storage?.onChanged) return;
+    const onChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string,
+    ) => {
+      if (area === "local" && changes.settings) void reloadSettings();
+    };
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
+  });
+
+  async function reloadSettings() {
+    if (hasChrome) settings = await getSettings();
+  }
 
   async function copyToClipboard(text: string, quiet = true) {
     if (!text) {
@@ -192,9 +216,25 @@
   let askOpen = $state(false);
   let question = $state("");
 
+  // The row the user actually sees: built-ins plus their custom chips, in the
+  // user's saved order, minus anything hidden. Custom chips are one-tap like
+  // the built-ins; only "ask" keeps its inline question input.
+  const actions = $derived(resolveActions(settings));
+
   const actionsReady = $derived(
     !!transcriptText.trim() && !!settings.cfAccountId && !!settings.cfApiToken,
   );
+
+  // Tone updates persist immediately so the choice carries into every window
+  // and the next dictation, matching the built-in Settings surface.
+  async function setTone(tone: ToneId) {
+    settings = { ...settings, tone };
+    if (hasChrome) await saveSettings($state.snapshot(settings));
+  }
+
+  function openOptions() {
+    if (hasChrome) chrome.runtime.openOptionsPage();
+  }
 
   async function applyAction(action: TextAction) {
     if (running) return;
@@ -349,10 +389,25 @@
       </div>
     {/if}
 
-    <div class="flex flex-wrap gap-2">
-      {#each TEXT_ACTIONS as action (action.id)}
+    <!-- Tone: a slim row of pills; the pick persists the moment you tap it. -->
+    <div class="mb-2 flex items-center gap-1.5">
+      {#each TONES as t (t.id)}
         <button
-          class="rounded-xl bg-face px-3 py-1.5 text-[12.5px] font-semibold shadow-sm transition-transform active:scale-95"
+          class="rounded-lg px-2 py-0.5 text-[11px] font-semibold transition-colors"
+          class:bg-accent={settings.tone === t.id}
+          class:text-face={settings.tone === t.id}
+          class:bg-panel={settings.tone !== t.id}
+          class:text-grey={settings.tone !== t.id}
+          title="Tone for Clean, Sharpen and custom chips"
+          onclick={() => setTone(t.id)}
+        >{t.label}</button>
+      {/each}
+    </div>
+
+    <div class="chips-row flex gap-2 overflow-x-auto">
+      {#each actions as action (action.id)}
+        <button
+          class="shrink-0 rounded-xl bg-face px-3 py-1.5 text-[12.5px] font-semibold shadow-sm transition-transform active:scale-95"
           class:ring-2={askOpen && action.needsQuestion}
           class:ring-accent={askOpen && action.needsQuestion}
           disabled={!!running || (!actionsReady && !action.needsQuestion)}
@@ -366,10 +421,17 @@
 
       {#if previous !== null}
         <button
-          class="rounded-xl bg-panel px-3 py-1.5 text-[12.5px] font-semibold text-grey transition-transform active:scale-95"
+          class="shrink-0 rounded-xl bg-panel px-3 py-1.5 text-[12.5px] font-semibold text-grey transition-transform active:scale-95"
           onclick={undo}
         >↩ Undo</button>
       {/if}
+
+      <button
+        class="shrink-0 rounded-xl bg-panel px-3 py-1.5 text-[12.5px] font-semibold text-grey transition-transform active:scale-95"
+        title="Customize chips in Settings"
+        aria-label="Customize chips"
+        onclick={openOptions}
+      >＋</button>
     </div>
   </div>
 
@@ -392,6 +454,14 @@
 </main>
 
 <style>
+  /* Chips scroll sideways when they outgrow the row; hide the scrollbar so the
+     row stays as clean as the rest of the Air OS surface. */
+  .chips-row {
+    scrollbar-width: none;
+  }
+  .chips-row::-webkit-scrollbar {
+    display: none;
+  }
   .orb {
     position: absolute;
     inset: 6px;

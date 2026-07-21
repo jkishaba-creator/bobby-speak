@@ -40,6 +40,17 @@ No account, no subscription, no telemetry, no server of ours. Ever.
 - **Local history** — recent transcriptions on this device only, capped,
   clearable, and `0` genuinely keeps nothing.
 
+## Customize your chips
+
+The AI action chips are yours to arrange: hide the ones you don't use,
+reorder the rest, or add your own — a short name plus a plain-English
+instruction ("turn this into a Slack message") — up to 12 custom chips.
+Built-ins can be hidden and reordered but not edited or deleted. A tone
+picker (None, Professional, Direct, Confident) in the pop-out and options
+page applies to Clean, Sharpen, and every custom chip — never Summarize or
+Ask. Manage it all from the extension's Options page or the mobile app's
+settings sheet.
+
 ## On mobile
 
 The same pipeline runs as an installable web app — no store, no approval:

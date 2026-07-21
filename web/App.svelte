@@ -6,10 +6,29 @@
   // The mobile flow is the pop-out flow: dictate here, the cleaned text is
   // already on your clipboard, paste into whatever app you were in.
 
+  import { tick } from "svelte";
   import { startDictation, type DictationSession } from "../src/pipeline";
   import { getSettings, saveSettings } from "../src/shared/settings";
-  import { DEFAULT_SETTINGS, type EngineId, type Settings } from "../src/shared/types";
-  import { TEXT_ACTIONS, runTextAction, type TextAction } from "../src/ai/textActions";
+  import {
+    DEFAULT_SETTINGS,
+    type CustomAction,
+    type EngineId,
+    type Settings,
+    type ToneId,
+  } from "../src/shared/types";
+  import {
+    CUSTOM_ACTION_LIMITS,
+    TEXT_ACTIONS,
+    TONES,
+    resolveActions,
+    runTextAction,
+    sanitizeCustomAction,
+    type TextAction,
+  } from "../src/ai/textActions";
+
+  // "Ask" is a fixed built-in; its inline question input needs a stable handle
+  // even if the chip is reordered or hidden from the row.
+  const ASK = TEXT_ACTIONS.find((a) => a.needsQuestion)!;
 
   // Chrome's Web Speech engine exists on Android Chrome but not iOS Safari,
   // so the default engine differs by device. Cloudflare works everywhere.
@@ -190,6 +209,117 @@
     status = "Reverted";
     void copyOut(transcript);
   }
+
+  // ---- Action customization (chips row + Actions settings section) ----
+  // The row the user sees, and the full catalog (hidden chips included) that
+  // the settings editor lists so anything can be un-hidden or reordered.
+  const chips = $derived(resolveActions(settings));
+  const allActions = $derived(resolveActions({ ...settings, hiddenActions: [] }));
+
+  function setTone(tone: ToneId) {
+    settings.tone = tone;
+    persist();
+  }
+
+  function isHidden(id: string): boolean {
+    return (settings.hiddenActions ?? []).includes(id);
+  }
+
+  function toggleHidden(id: string) {
+    const hidden = new Set(settings.hiddenActions ?? []);
+    if (hidden.has(id)) hidden.delete(id);
+    else hidden.add(id);
+    settings.hiddenActions = [...hidden];
+    persist();
+  }
+
+  function moveAction(id: string, dir: -1 | 1) {
+    const ids = allActions.map((a) => a.id);
+    const i = ids.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    settings.actionOrder = ids;
+    persist();
+  }
+
+  function customFor(a: TextAction): CustomAction | undefined {
+    return (settings.customActions ?? []).find((c) => "custom-" + c.id === a.id);
+  }
+
+  // Add / edit / delete custom chips, validated through the core helper.
+  let formOpen = $state(false);
+  let editingId: string | null = $state(null);
+  let draftLabel = $state("");
+  let draftPrompt = $state("");
+  let actionError = $state("");
+
+  function startNew() {
+    editingId = null;
+    draftLabel = "";
+    draftPrompt = "";
+    actionError = "";
+    formOpen = true;
+  }
+
+  function startEdit(c: CustomAction) {
+    editingId = c.id;
+    draftLabel = c.label;
+    draftPrompt = c.prompt;
+    actionError = "";
+    formOpen = true;
+  }
+
+  function cancelForm() {
+    formOpen = false;
+    editingId = null;
+    draftLabel = "";
+    draftPrompt = "";
+    actionError = "";
+  }
+
+  function saveCustom() {
+    const res = sanitizeCustomAction(
+      { id: editingId ?? undefined, label: draftLabel, prompt: draftPrompt },
+      settings.customActions ?? [],
+    );
+    if (!res.ok) {
+      actionError = res.error;
+      return;
+    }
+    const list = (settings.customActions ?? []).slice();
+    const idx = list.findIndex((c) => c.id === res.action.id);
+    if (idx >= 0) list[idx] = res.action;
+    else list.push(res.action);
+    settings.customActions = list;
+    persist();
+    cancelForm();
+  }
+
+  function deleteCustom(c: CustomAction) {
+    const catalogId = "custom-" + c.id;
+    settings.customActions = (settings.customActions ?? []).filter(
+      (x) => x.id !== c.id,
+    );
+    settings.hiddenActions = (settings.hiddenActions ?? []).filter(
+      (id) => id !== catalogId,
+    );
+    settings.actionOrder = (settings.actionOrder ?? []).filter(
+      (id) => id !== catalogId,
+    );
+    if (editingId === c.id) cancelForm();
+    persist();
+  }
+
+  // The "＋" chip and the header gear both open the sheet; the chip drops the
+  // user at the Actions section.
+  let actionsSectionEl: HTMLElement | undefined = $state();
+
+  async function openActionsSettings() {
+    showSettings = true;
+    await tick();
+    actionsSectionEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 </script>
 
 <main
@@ -285,17 +415,35 @@
 
   <!-- AI actions -->
   <div class="shrink-0">
+    <!-- tone pills: the voice applied to Clean, Sharpen and custom chips -->
+    <div class="mb-2 flex flex-wrap items-center gap-1.5">
+      <span class="mr-0.5 text-[11px] font-bold uppercase tracking-wider text-grey">Tone</span>
+      {#each TONES as t (t.id)}
+        <button
+          class="rounded-full px-3 py-1 text-[12px] font-semibold shadow-sm transition-transform active:scale-95"
+          class:bg-ink={settings.tone === t.id}
+          class:text-screen={settings.tone === t.id}
+          class:bg-face={settings.tone !== t.id}
+          class:text-grey={settings.tone !== t.id}
+          aria-pressed={settings.tone === t.id}
+          onclick={() => setTone(t.id)}
+        >
+          {t.label}
+        </button>
+      {/each}
+    </div>
+
     {#if askOpen}
       <div class="mb-2 flex gap-2">
         <input
           class="min-w-0 flex-1 rounded-xl border border-line bg-face px-3 py-2.5 text-[16px]"
           placeholder="Ask about this text…"
           bind:value={question}
-          onkeydown={(e) => e.key === "Enter" && applyAction(TEXT_ACTIONS[3])}
+          onkeydown={(e) => e.key === "Enter" && applyAction(ASK)}
         />
         <button
           class="pillbtn pillbtn-dark shrink-0"
-          onclick={() => applyAction(TEXT_ACTIONS[3])}
+          onclick={() => applyAction(ASK)}
           disabled={!!running}
         >
           {running === "ask" ? "…" : "Go"}
@@ -307,7 +455,7 @@
     {/if}
 
     <div class="flex flex-wrap gap-2">
-      {#each TEXT_ACTIONS as action (action.id)}
+      {#each chips as action (action.id)}
         <button
           class="rounded-xl bg-face px-3.5 py-2 text-[13.5px] font-semibold shadow-sm transition-transform active:scale-95"
           class:ring-2={askOpen && action.needsQuestion}
@@ -329,6 +477,15 @@
           ↩ Undo
         </button>
       {/if}
+
+      <button
+        class="rounded-xl bg-panel px-3.5 py-2 text-[13.5px] font-semibold text-grey shadow-sm transition-transform active:scale-95"
+        title="Customize actions"
+        aria-label="Customize actions"
+        onclick={openActionsSettings}
+      >
+        ＋
+      </button>
     </div>
   </div>
 
@@ -456,6 +613,139 @@
             </span>
           </button>
         {/each}
+      </section>
+
+      <!-- Actions: tone, hide/reorder, and custom one-tap chips -->
+      <section
+        bind:this={actionsSectionEl}
+        class="mb-4 scroll-mt-4 rounded-[20px] bg-screen px-4 py-3"
+      >
+        <h3 class="mb-1 text-[12px] font-bold uppercase tracking-wider text-grey">Actions</h3>
+        <p class="mb-2 text-[12.5px] text-grey">
+          Tap a chip after dictating to reshape the text. Hide, reorder, or add
+          your own one-tap chips.
+        </p>
+
+        <!-- tone mirror -->
+        <div class="border-b border-line pb-3">
+          <span class="text-[13px] font-semibold">Tone</span>
+          <span class="mt-0.5 mb-2 block text-[12.5px] text-grey">
+            Applied to Clean, Sharpen, and your custom chips.
+          </span>
+          <div class="flex flex-wrap gap-1.5">
+            {#each TONES as t (t.id)}
+              <button
+                class="rounded-full px-3 py-1 text-[12px] font-semibold shadow-sm transition-transform active:scale-95"
+                class:bg-ink={settings.tone === t.id}
+                class:text-screen={settings.tone === t.id}
+                class:bg-face={settings.tone !== t.id}
+                class:text-grey={settings.tone !== t.id}
+                aria-pressed={settings.tone === t.id}
+                onclick={() => setTone(t.id)}
+              >
+                {t.label}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- hide / reorder list -->
+        <div class="py-1">
+          {#each allActions as action, i (action.id)}
+            {@const custom = customFor(action)}
+            <div class="flex items-center gap-2 border-b border-line py-2.5 last:border-b-0">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-semibold" class:text-lite={isHidden(action.id)}>
+                  {action.label}
+                  {#if custom}<span class="text-[11px] font-normal text-lite"> · custom</span>{/if}
+                </span>
+                <span class="mt-0.5 block truncate text-[12px] text-grey">{action.hint}</span>
+              </span>
+
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-lg bg-face text-[13px] text-grey shadow-sm active:scale-95 disabled:opacity-30"
+                  aria-label={"Move " + action.label + " up"}
+                  disabled={i === 0}
+                  onclick={() => moveAction(action.id, -1)}
+                >↑</button>
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-lg bg-face text-[13px] text-grey shadow-sm active:scale-95 disabled:opacity-30"
+                  aria-label={"Move " + action.label + " down"}
+                  disabled={i === allActions.length - 1}
+                  onclick={() => moveAction(action.id, 1)}
+                >↓</button>
+                <button
+                  class="grid h-7 min-w-[3.4rem] place-items-center rounded-lg bg-face px-2 text-[11.5px] font-semibold shadow-sm active:scale-95"
+                  class:text-accent={isHidden(action.id)}
+                  class:text-grey={!isHidden(action.id)}
+                  aria-pressed={!isHidden(action.id)}
+                  onclick={() => toggleHidden(action.id)}
+                >{isHidden(action.id) ? "Show" : "Hide"}</button>
+                {#if custom}
+                  <button
+                    class="grid h-7 w-7 place-items-center rounded-lg bg-face text-[12px] text-grey shadow-sm active:scale-95"
+                    aria-label={"Edit " + action.label}
+                    onclick={() => startEdit(custom)}
+                  >✎</button>
+                  <button
+                    class="grid h-7 w-7 place-items-center rounded-lg bg-panel text-[12px] text-grey shadow-sm active:scale-95"
+                    aria-label={"Delete " + action.label}
+                    onclick={() => deleteCustom(custom)}
+                  >✕</button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- add / edit custom chip -->
+        {#if formOpen}
+          <div class="mt-2 rounded-[16px] bg-face p-3 shadow-sm">
+            <label class="block">
+              <span class="text-[12.5px] font-semibold">Label</span>
+              <input
+                class="mt-1 w-full rounded-xl border border-line bg-screen px-3 py-2 text-[16px]"
+                placeholder="e.g. Emoji-fy"
+                maxlength={CUSTOM_ACTION_LIMITS.maxLabel}
+                bind:value={draftLabel}
+              />
+            </label>
+            <label class="mt-2 block">
+              <span class="flex items-center justify-between text-[12.5px] font-semibold">
+                <span>Instruction</span>
+                <span class="font-normal text-lite">{draftPrompt.length}/{CUSTOM_ACTION_LIMITS.maxPrompt}</span>
+              </span>
+              <textarea
+                class="mt-1 h-24 w-full resize-none rounded-xl border border-line bg-screen px-3 py-2 text-[16px]"
+                placeholder="Describe what to do with the text, in plain English."
+                maxlength={CUSTOM_ACTION_LIMITS.maxPrompt}
+                bind:value={draftPrompt}
+              ></textarea>
+            </label>
+            {#if actionError}
+              <p class="mt-1.5 text-[12.5px] font-semibold text-accent">{actionError}</p>
+            {/if}
+            <div class="mt-2.5 flex gap-2">
+              <button class="pillbtn pillbtn-dark flex-1" onclick={saveCustom}>
+                {editingId ? "Save" : "Add chip"}
+              </button>
+              <button class="pillbtn" onclick={cancelForm}>Cancel</button>
+            </div>
+          </div>
+        {:else}
+          <button
+            class="mt-2 w-full rounded-xl border border-dashed border-line bg-face py-2.5 text-[13px] font-semibold text-grey active:scale-[0.99]"
+            disabled={(settings.customActions ?? []).length >= CUSTOM_ACTION_LIMITS.maxCount}
+            style={(settings.customActions ?? []).length >= CUSTOM_ACTION_LIMITS.maxCount ? "opacity:.45" : ""}
+            onclick={startNew}
+          >
+            ＋ Add custom chip
+            <span class="font-normal text-lite">
+              ({(settings.customActions ?? []).length}/{CUSTOM_ACTION_LIMITS.maxCount})
+            </span>
+          </button>
+        {/if}
       </section>
 
       <p class="px-1 text-center text-[12px] leading-relaxed text-lite">
