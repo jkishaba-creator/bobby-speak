@@ -8,6 +8,7 @@
   import { startDictation, type DictationSession } from "../../src/pipeline";
   import { getSettings } from "../../src/shared/settings";
   import { DEFAULT_SETTINGS, type Settings } from "../../src/shared/types";
+  import { TEXT_ACTIONS, runTextAction, type TextAction } from "../../src/ai/textActions";
 
   const hasChrome =
     typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
@@ -24,9 +25,15 @@
   let levels: number[] = $state([0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
   let session: DictationSession | null = null;
-  let settings: Settings = { ...DEFAULT_SETTINGS };
+  let settings: Settings = $state({ ...DEFAULT_SETTINGS });
   let pendingCopy: string | null = null;
   let unsubscribe: (() => void) | null = null;
+
+  // Load settings up front so the AI action chips can tell, before the first
+  // dictation, whether Cloudflare credentials are present.
+  (async () => {
+    if (hasChrome) settings = await getSettings();
+  })();
 
   async function copyToClipboard(text: string, quiet = true) {
     if (!text) {
@@ -88,7 +95,7 @@
   async function start() {
     if (listening) return;
     settings = hasChrome ? await getSettings() : { ...DEFAULT_SETTINGS };
-    session = startDictation(settings);
+    session = startDictation($state.snapshot(settings));
     listening = true;
     reportState(true);
     statusTitle = "Listening…";
@@ -170,6 +177,69 @@
     transcriptText = "";
     tentative = "";
     setClip("Clipboard idle", "idle");
+    previous = null;
+    askOpen = false;
+    question = "";
+  }
+
+  // ---- AI text actions (clean / summarize / sharpen / ask) ----
+  // Same shared actions the mobile app uses. Every action replaces the
+  // transcript and stashes what it replaced, so a single Undo always gets you
+  // back, and the result is auto-copied like everything else in the pop-out.
+  const askAction = TEXT_ACTIONS.find((a) => a.needsQuestion)!;
+  let running: string | null = $state(null);
+  let previous: string | null = $state(null);
+  let askOpen = $state(false);
+  let question = $state("");
+
+  const actionsReady = $derived(
+    !!transcriptText.trim() && !!settings.cfAccountId && !!settings.cfApiToken,
+  );
+
+  async function applyAction(action: TextAction) {
+    if (running) return;
+    if (action.needsQuestion && !askOpen) {
+      askOpen = true;
+      return;
+    }
+    if (!actionsReady) {
+      setClip(
+        !transcriptText.trim()
+          ? "Dictate something first"
+          : "Add your Cloudflare keys in Settings to use AI actions",
+        "err",
+      );
+      return;
+    }
+
+    running = action.id;
+    setClip("Working…", "idle");
+    const before = transcriptText;
+    const result = await runTextAction(
+      action,
+      transcriptText,
+      $state.snapshot(settings),
+      question,
+    );
+    running = null;
+
+    if (!result.ok) {
+      setClip(result.error, "err");
+      return;
+    }
+    previous = before;
+    transcriptText = result.text;
+    askOpen = false;
+    question = "";
+    // copyToClipboard sets the clip status line to the "on clipboard" message.
+    void copyToClipboard(result.text);
+  }
+
+  function undo() {
+    if (previous === null) return;
+    transcriptText = previous;
+    previous = null;
+    void copyToClipboard(transcriptText);
   }
 
   // manual edits re-copy after a beat
@@ -251,6 +321,55 @@
     ></textarea>
     <div class="min-h-[18px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-grey">
       {tentative ? "… " + tentative : ""}
+    </div>
+  </div>
+
+  <!-- AI text actions -->
+  <div class="shrink-0">
+    {#if askOpen}
+      <div class="mb-2 flex gap-2">
+        <input
+          class="min-w-0 flex-1 rounded-xl border border-line bg-face px-3 py-2 text-sm outline-none placeholder:text-lite"
+          placeholder="Ask about this text…"
+          bind:value={question}
+          onkeydown={(e) => e.key === "Enter" && applyAction(askAction)}
+        />
+        <button
+          class="pillbtn-dark pillbtn shrink-0"
+          onclick={() => applyAction(askAction)}
+          disabled={!!running}
+        >
+          {running === "ask" ? "…" : "Go"}
+        </button>
+        <button
+          class="pillbtn shrink-0"
+          aria-label="Close question"
+          onclick={() => { askOpen = false; question = ""; }}
+        >✕</button>
+      </div>
+    {/if}
+
+    <div class="flex flex-wrap gap-2">
+      {#each TEXT_ACTIONS as action (action.id)}
+        <button
+          class="rounded-xl bg-face px-3 py-1.5 text-[12.5px] font-semibold shadow-sm transition-transform active:scale-95"
+          class:ring-2={askOpen && action.needsQuestion}
+          class:ring-accent={askOpen && action.needsQuestion}
+          disabled={!!running || (!actionsReady && !action.needsQuestion)}
+          style={!!running || (!actionsReady && !action.needsQuestion) ? "opacity:.45" : ""}
+          title={action.hint}
+          onclick={() => applyAction(action)}
+        >
+          {running === action.id ? "Working…" : action.label}
+        </button>
+      {/each}
+
+      {#if previous !== null}
+        <button
+          class="rounded-xl bg-panel px-3 py-1.5 text-[12.5px] font-semibold text-grey transition-transform active:scale-95"
+          onclick={undo}
+        >↩ Undo</button>
+      {/if}
     </div>
   </div>
 
