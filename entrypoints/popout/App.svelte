@@ -138,7 +138,7 @@
           tentative = event.tentative;
           if (event.committed) void copyToClipboard(event.committed);
           break;
-        case "done":
+        case "done": {
           finishUi();
           if (event.transcript) {
             transcriptText = event.transcript;
@@ -146,14 +146,22 @@
           } else if (!transcriptText) {
             setClip("Clipboard idle", "idle");
           }
+          // A chip tapped mid-recording waits here: the recording is finished
+          // now, so run the action against the final transcript.
+          const next = pendingAction;
+          pendingAction = null;
+          if (next) void applyAction(next);
           break;
+        }
         case "mic-denied":
+          pendingAction = null;
           finishUi();
           statusTitle = "Microphone blocked";
           statusSub =
             "Allow the mic for this window (icon in the address bar), then try again.";
           break;
         case "error":
+          pendingAction = null;
           finishUi();
           statusTitle = "Engine error";
           statusSub = event.message;
@@ -204,6 +212,7 @@
     previous = null;
     askOpen = false;
     question = "";
+    pendingAction = null;
   }
 
   // ---- AI text actions (clean / summarize / sharpen / ask) ----
@@ -215,15 +224,21 @@
   let previous: string | null = $state(null);
   let askOpen = $state(false);
   let question = $state("");
+  // A chip tapped while recording: finish the take first, apply after "done".
+  let pendingAction: TextAction | null = null;
 
   // The row the user actually sees: built-ins plus their custom chips, in the
   // user's saved order, minus anything hidden. Custom chips are one-tap like
   // the built-ins; only "ask" keeps its inline question input.
   const actions = $derived(resolveActions(settings));
 
-  const actionsReady = $derived(
-    !!transcriptText.trim() && !!settings.cfAccountId && !!settings.cfApiToken,
-  );
+  const keysReady = $derived(!!settings.cfAccountId && !!settings.cfApiToken);
+  const actionsReady = $derived(!!transcriptText.trim() && keysReady);
+
+  // While recording there may be no committed text yet (Whisper commits only
+  // on stop), but a chip tap is still meaningful — it finishes the take and
+  // applies. So mid-recording the gate is just the credentials.
+  const chipUsable = $derived(listening ? keysReady : actionsReady);
 
   // Tone updates persist immediately so the choice carries into every window
   // and the next dictation, matching the built-in Settings surface.
@@ -238,6 +253,14 @@
 
   async function applyAction(action: TextAction) {
     if (running) return;
+    if (listening) {
+      // Speak, then tap a chip: the tap finishes the recording, and the
+      // action runs on the final transcript once the engine flushes it.
+      pendingAction = action;
+      setClip("Finishing the recording…", "idle");
+      void stop();
+      return;
+    }
     if (action.needsQuestion && !askOpen) {
       askOpen = true;
       return;
@@ -262,6 +285,10 @@
       question,
     );
     running = null;
+
+    // A new recording started while the model was working; its transcript
+    // owns the pop-out now — don't clobber it with a stale result.
+    if (listening) return;
 
     if (!result.ok) {
       setClip(result.error, "err");
@@ -313,15 +340,22 @@
 
   <div class="flex items-center gap-3.5">
     <div class="relative h-24 w-24 shrink-0">
-      <svg class="absolute inset-0" viewBox="0 0 96 96" fill="none" aria-hidden="true">
+      <svg
+        class="tick-ring absolute inset-0"
+        class:spin={listening}
+        viewBox="0 0 96 96"
+        fill="none"
+        aria-hidden="true"
+      >
         <circle
           cx="48" cy="48" r="46"
-          stroke="#A6A9B5" stroke-width="2.2" stroke-linecap="round"
-          stroke-dasharray="0.1 11.9" opacity="0.75"
+          stroke={listening ? "#E8620A" : "#A6A9B5"}
+          stroke-width="2.2" stroke-linecap="round"
+          stroke-dasharray="0.1 11.9" opacity={listening ? "0.9" : "0.75"}
         />
       </svg>
       {#if listening}
-        <span class="absolute -top-px left-1/2 z-[3] h-2 w-2 -translate-x-1/2 rounded-full bg-accent"></span>
+        <span class="rec-dot absolute -top-px left-1/2 z-[3] h-2 w-2 -translate-x-1/2 rounded-full bg-accent"></span>
       {/if}
       <div class="orb" class:fast={listening} aria-hidden="true">
         <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
@@ -410,8 +444,8 @@
           class="shrink-0 rounded-xl bg-face px-3 py-1.5 text-[12.5px] font-semibold shadow-sm transition-transform active:scale-95"
           class:ring-2={askOpen && action.needsQuestion}
           class:ring-accent={askOpen && action.needsQuestion}
-          disabled={!!running || (!actionsReady && !action.needsQuestion)}
-          style={!!running || (!actionsReady && !action.needsQuestion) ? "opacity:.45" : ""}
+          disabled={!!running || (!chipUsable && !action.needsQuestion)}
+          style={!!running || (!chipUsable && !action.needsQuestion) ? "opacity:.45" : ""}
           title={action.hint}
           onclick={() => applyAction(action)}
         >
@@ -496,6 +530,31 @@
   .orb.fast .blob {
     animation-duration: 3s;
   }
+  /* Recording state: the same elements, just awake — the tick ring turns
+     accent and crawls, the dot breathes, and the orb gets a soft warm halo. */
+  .orb.fast {
+    box-shadow:
+      inset 0 0 0 1px rgba(20, 20, 30, 0.05),
+      0 16px 34px -16px rgba(40, 42, 60, 0.4),
+      0 0 0 1.5px rgba(232, 98, 10, 0.22),
+      0 0 26px -6px rgba(232, 98, 10, 0.45);
+  }
+  .tick-ring {
+    transform-origin: center;
+  }
+  .tick-ring.spin {
+    animation: ringcrawl 24s linear infinite;
+  }
+  @keyframes ringcrawl {
+    to { transform: rotate(360deg); }
+  }
+  .rec-dot {
+    animation: recpulse 1.6s ease-in-out infinite;
+  }
+  @keyframes recpulse {
+    0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.35; transform: translateX(-50%) scale(0.8); }
+  }
   @keyframes drift1 {
     from { transform: translate(0, 0); }
     to { transform: translate(7%, -5%); }
@@ -505,6 +564,6 @@
     to { transform: translate(-6%, 5%) scale(1.07); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .blob { animation: none; }
+    .blob, .tick-ring.spin, .rec-dot { animation: none; }
   }
 </style>

@@ -46,4 +46,14 @@ describe("pop-out AI actions wiring", () => {
     expect(source).toContain("settings.cfAccountId");
     expect(source).toContain("settings.cfApiToken");
   });
+
+  it("finishes an active recording before applying a chip", () => {
+    // Tapping a chip mid-recording must not race the pipeline: the tap stows
+    // the action, stops the session, and the "done" handler runs it against
+    // the final transcript. Without this, later commits clobber the result.
+    expect(source).toMatch(/if\s*\(listening\)\s*\{[^}]*pendingAction\s*=\s*action/s);
+    expect(source).toMatch(/case\s*"done"[\s\S]*pendingAction/);
+    // And a result that lands after a NEW recording started is dropped.
+    expect(source).toMatch(/running\s*=\s*null;[\s\S]{0,200}if\s*\(listening\)\s*return/);
+  });
 });
