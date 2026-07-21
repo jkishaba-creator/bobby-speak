@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.bobbyspeak.keyboard">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_btn_speak_now"
-        android:label="Bobby Speak"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Bobby Speak Keyboard"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
 
+        <!-- Dictation Input Method Service -->
         <service
             android:name=".BobbyInputMethodService"
             android:label="Bobby Speak Dictation"
@@ -24,5 +25,25 @@
                 android:name="android.view.im"
                 android:resource="@xml/method" />
         </service>
+
+        <!-- Cloudflare Credentials Settings Activity -->
+        <activity
+            android:name=".BobbySettingsActivity"
+            android:label="Bobby Speak Settings"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Runtime Mic Permission Request Activity -->
+        <activity
+            android:name=".PermissionActivity"
+            android:label="Microphone Permission"
+            android:theme="@android:style/Theme.DeviceDefault.Dialog"
+            android:exported="false" />
+
     </application>
+
 </manifest>
