@@ -1,6 +1,6 @@
 {
   "name": "bobby-speak",
-  "description": "Voice dictation for the browser — V2 streaming architecture",
+  "description": "Voice dictation for the browser \u2014 V2 streaming architecture",
   "private": true,
   "version": "2.0.0",
   "type": "module",
@@ -10,7 +10,10 @@
     "zip": "wxt zip",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build:web": "vite build --config web/vite.config.ts",
+    "preview:web": "vite preview --config web/vite.config.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.16",

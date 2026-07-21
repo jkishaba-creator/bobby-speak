@@ -38,7 +38,22 @@ No account, no subscription, no telemetry, no server of ours. Ever.
 - **Local history** — recent transcriptions on this device only, capped,
   clearable, and `0` genuinely keeps nothing.
 
-## Install
+## On mobile
+
+The same pipeline runs as an installable web app — no store, no approval:
+
+```bash
+npm run build:web     # → .output/web  (host it anywhere static)
+npm run dev:web       # local development
+```
+
+Open it on a phone, **Add to Home Screen**, and it behaves like an app: tap
+the orb, talk, and the cleaned text is already on your clipboard — paste into
+any app. Android can use the free built-in engine; iOS needs Cloudflare keys
+(Safari has no Web Speech API). It shares `src/` with the extension, so
+there's one pipeline, one set of design tokens, two shells.
+
+## Install (Chrome extension)
 
 Not on the Web Store yet — load it unpacked:
 
@@ -46,6 +61,15 @@ Not on the Web Store yet — load it unpacked:
 2. Open `chrome://extensions`, enable **Developer mode**
 3. **Load unpacked** → select **`.output/chrome-mv3`**
 4. The welcome page opens itself — three steps and you're set
+
+**Using an AI assistant?** Paste this into Claude Code (or any coding agent)
+and it will build everything and hand you the final click:
+
+```
+Install this Chrome extension: https://raw.githubusercontent.com/jkishaba-creator/bobby-speak/main/INSTALL.md
+```
+
+Full details (including troubleshooting) in [INSTALL.md](INSTALL.md).
 
 ## Privacy
 
@@ -70,7 +94,7 @@ Mic ─ frames ─▶ ASR provider ─ events ─▶ staged processing ─▶ ov
 ```
 
 Every layer is pluggable: an ASR engine is one file implementing
-`AsrProvider`, a text processor is one pure function. 117 tests cover the
+`AsrProvider`, a text processor is one pure function. 57 tests cover the
 pipeline, the grammar stages, the audio math, and the workflow files.
 
 ```bash
