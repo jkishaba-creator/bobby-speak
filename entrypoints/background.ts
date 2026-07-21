@@ -157,6 +157,39 @@ export default defineBackground(() => {
   }
 
   let popoutWindowId: number | null = null;
+  let popoutListening = false;
+
+  // MV3 service workers shut down after ~30s idle and restart cold, wiping
+  // in-memory state. Without this, the shortcut stops recognizing an open
+  // pop-out (and routes dictation to the offscreen document instead, so the
+  // pop-out never shows its listening state). storage.session survives worker
+  // restarts and clears with the browser — the same lifetime as the window.
+  const popoutStateReady = chrome.storage.session
+    .get(["popoutWindowId", "popoutListening"])
+    .then((s) => {
+      if (typeof s.popoutWindowId === "number") popoutWindowId = s.popoutWindowId;
+      if (typeof s.popoutListening === "boolean") popoutListening = s.popoutListening;
+    })
+    .catch(() => {});
+
+  function persistPopoutState() {
+    chrome.storage.session
+      .set({ popoutWindowId, popoutListening })
+      .catch(() => {});
+  }
+
+  // Belt and braces: even with no remembered id (fresh worker, pop-out opened
+  // in an earlier life), the pop-out is recognizable by what it shows.
+  async function isPopoutWindow(win: chrome.windows.Window): Promise<boolean> {
+    if (win.id != null && win.id === popoutWindowId) return true;
+    if (win.type !== "popup" || win.id == null) return false;
+    try {
+      const tabs = await chrome.tabs.query({ windowId: win.id });
+      return !!tabs[0]?.url?.startsWith(chrome.runtime.getURL("/popout.html"));
+    } catch {
+      return false;
+    }
+  }
 
   async function openPopout() {
     if (popoutWindowId != null) {
@@ -175,16 +208,16 @@ export default defineBackground(() => {
       focused: true,
     });
     popoutWindowId = win.id ?? null;
+    persistPopoutState();
   }
 
   chrome.windows.onRemoved.addListener((id) => {
     if (id === popoutWindowId) {
       popoutWindowId = null;
       popoutListening = false; // a closed pop-out can't be listening
+      persistPopoutState();
     }
   });
-
-  let popoutListening = false;
 
   function togglePopout() {
     chrome.runtime.sendMessage({ target: "popout", type: "toggle" }).catch(() => {});
@@ -196,6 +229,9 @@ export default defineBackground(() => {
   //   a Chrome window focused               -> page flow (overlay + insert)
   //   any other app focused                 -> clipboard mode (beeps + paste)
   async function smartToggle() {
+    // The worker may have just woken up cold: recover the pop-out routing
+    // state before deciding where this press should go.
+    await popoutStateReady;
     if (popoutListening) {
       togglePopout();
       return;
@@ -213,7 +249,10 @@ export default defineBackground(() => {
       /* no window info — treat as another app */
     }
     if (focusedWindow?.focused) {
-      if (focusedWindow.id === popoutWindowId) {
+      if (await isPopoutWindow(focusedWindow)) {
+        // Re-adopt the window if the id was lost to a worker restart.
+        popoutWindowId = focusedWindow.id ?? popoutWindowId;
+        persistPopoutState();
         togglePopout();
         return;
       }
@@ -247,6 +286,7 @@ export default defineBackground(() => {
           break;
         case "popout-state":
           popoutListening = msg.listening;
+          persistPopoutState();
           break;
         case "copy-request":
           // Pop-out asking for an unfocused-safe clipboard write: the
