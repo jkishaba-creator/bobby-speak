@@ -36,8 +36,13 @@ describe("acceptPolish", () => {
 describe("grammarStage via Cloudflare", () => {
   it("posts to the Workers AI run endpoint and returns the formatted text", async () => {
     const fetchMock = vi.fn(async (url: string, init: any) => {
-      expect(url).toContain("/accounts/acct123/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast");
-      expect(init.headers.Authorization).toBe("Bearer tok456");
+      // In vitest (no chrome global) the client takes the same-origin proxy
+      // path, not api.cloudflare.com — browsers are blocked from the latter
+      // by CORS. Credentials ride in x-cf-* headers.
+      expect(url).toBe("/api/ai");
+      expect(init.headers["x-cf-account"]).toBe("acct123");
+      expect(init.headers["x-cf-token"]).toBe("tok456");
+      expect(init.headers["x-cf-model"]).toBe("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
       const body = JSON.parse(init.body);
       expect(body.messages[0].role).toBe("system");
       expect(body.messages[1].content).toBe("hello world how are you");
@@ -53,13 +58,35 @@ describe("grammarStage via Cloudflare", () => {
   });
 
   it("honors the chosen model", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      expect(url).toContain("/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+    const fetchMock = vi.fn(async (_url: string, init: any) => {
+      expect(init.headers["x-cf-model"]).toBe("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
       return { json: async () => ({ success: true, result: { response: "Fixed." } }) };
     });
     vi.stubGlobal("fetch", fetchMock);
     const out = await grammarStage.run("fix", ctx({ cfTextModel: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" }));
     expect(out).toBe("Fixed.");
+  });
+
+  it("calls api.cloudflare.com directly with a Bearer token in extension context", async () => {
+    // Inside the Chrome extension, host permissions bypass CORS and there is
+    // no same-origin proxy — the client must hit Cloudflare directly. A chrome
+    // global with runtime.id is what marks that context; afterEach unstubs it.
+    vi.stubGlobal("chrome", { runtime: { id: "abc123" } });
+    const fetchMock = vi.fn(async (url: string, init: any) => {
+      expect(url).toBe(
+        "https://api.cloudflare.com/client/v4/accounts/acct123/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      );
+      expect(init.headers.Authorization).toBe("Bearer tok456");
+      expect(init.headers["x-cf-account"]).toBeUndefined();
+      return {
+        json: async () => ({ success: true, result: { response: "Hello world." } }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const out = await grammarStage.run("hello world", ctx());
+    expect(out).toBe("Hello world.");
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("returns null (keeps rule-based text) without credentials", async () => {

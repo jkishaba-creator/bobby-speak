@@ -3,6 +3,7 @@
 // Transport (HTTP) is an implementation detail that never leaves this file.
 
 import { bytesToBase64, encodeWav16k, TARGET_RATE } from "../../audio/resample";
+import { runCloudflareModel } from "../cloudflareClient";
 import type { AsrContext, AsrProvider } from "../provider";
 
 const MODEL = "@cf/openai/whisper-large-v3-turbo";
@@ -63,20 +64,15 @@ export function cloudflareWhisperProvider(): AsrProvider {
         body.language = ctx.settings.language.split("-")[0];
       }
 
-      const url =
-        "https://api.cloudflare.com/client/v4/accounts/" +
-        encodeURIComponent(ctx.settings.cfAccountId) +
-        "/ai/run/" +
-        MODEL;
       try {
-        const resp = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + ctx.settings.cfApiToken,
-            "Content-Type": "application/json",
+        const resp = await runCloudflareModel(
+          MODEL,
+          {
+            accountId: ctx.settings.cfAccountId,
+            apiToken: ctx.settings.cfApiToken,
           },
-          body: JSON.stringify(body),
-        });
+          body,
+        );
         if (resp.status === 401 || resp.status === 403) {
           ctx.error("Cloudflare rejected the API token — check it in Settings.");
           return;

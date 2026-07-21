@@ -3,5 +3,11 @@
   "compilerOptions": {
     "strict": true,
     "types": ["chrome", "vitest/globals"]
-  }
+  },
+  // functions/ holds Cloudflare Pages Functions, not part of the extension or
+  // web bundle. They rely on the Pages runtime's PagesFunction global (no
+  // @cloudflare/workers-types dependency here) and are deployed separately, so
+  // keep them out of the extension's type-check. (.output mirrors the parent
+  // tsconfig's exclude, which this list replaces.)
+  "exclude": ["functions", ".output"]
 }

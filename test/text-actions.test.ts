@@ -50,8 +50,12 @@ describe("action catalog", () => {
 describe("runTextAction", () => {
   it("sends the action's system prompt and the text, and returns the result", async () => {
     const fetchMock = vi.fn(async (url: string, init: any) => {
-      expect(url).toContain("/accounts/acct123/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast");
-      expect(init.headers.Authorization).toBe("Bearer tok456");
+      // Node/vitest has no chrome global, so the client uses the same-origin
+      // proxy; api.cloudflare.com is unreachable from a browser page.
+      expect(url).toBe("/api/ai");
+      expect(init.headers["x-cf-account"]).toBe("acct123");
+      expect(init.headers["x-cf-token"]).toBe("tok456");
+      expect(init.headers["x-cf-model"]).toBe("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
       const body = JSON.parse(init.body);
       expect(body.messages[0].content).toBe(action("clean").system);
       expect(body.messages[1].content).toBe("um so i think its fine");
@@ -131,8 +135,8 @@ describe("runTextAction", () => {
   });
 
   it("honors the configured model", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      expect(url).toContain("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+    const fetchMock = vi.fn(async (_url: string, init: any) => {
+      expect(init.headers["x-cf-model"]).toBe("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
       return { status: 200, json: async () => ({ success: true, result: { response: "ok" } }) };
     });
     vi.stubGlobal("fetch", fetchMock);
