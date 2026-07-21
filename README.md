@@ -49,7 +49,9 @@ npm run dev:web       # local development
 
 Open it on a phone, **Add to Home Screen**, and it behaves like an app: tap
 the orb, talk, and the cleaned text is already on your clipboard — paste into
-any app. Android can use the free built-in engine; iOS needs Cloudflare keys
+any app. Underneath the transcript, one-tap AI actions — **Clean**,
+**Summarize**, **Sharpen**, and **Ask** (a question about what you just said)
+— each with an Undo. Android can use the free built-in engine; iOS needs Cloudflare keys
 (Safari has no Web Speech API). It shares `src/` with the extension, so
 there's one pipeline, one set of design tokens, two shells.
 
@@ -94,7 +96,7 @@ Mic ─ frames ─▶ ASR provider ─ events ─▶ staged processing ─▶ ov
 ```
 
 Every layer is pluggable: an ASR engine is one file implementing
-`AsrProvider`, a text processor is one pure function. 57 tests cover the
+`AsrProvider`, a text processor is one pure function. 70 tests cover the
 pipeline, the grammar stages, the audio math, and the workflow files.
 
 ```bash

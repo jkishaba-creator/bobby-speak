@@ -9,6 +9,7 @@
   import { startDictation, type DictationSession } from "../src/pipeline";
   import { getSettings, saveSettings } from "../src/shared/settings";
   import { DEFAULT_SETTINGS, type EngineId, type Settings } from "../src/shared/types";
+  import { TEXT_ACTIONS, runTextAction, type TextAction } from "../src/ai/textActions";
 
   // Chrome's Web Speech engine exists on Android Chrome but not iOS Safari,
   // so the default engine differs by device. Cloudflare works everywhere.
@@ -129,6 +130,65 @@
     tentative = "";
     status = "Tap to speak";
     errorMsg = "";
+    previous = null;
+    askOpen = false;
+    question = "";
+  }
+
+  // ---- AI text actions (clean / summarize / sharpen / ask) ----
+  // Every action replaces the transcript and stashes what it replaced, so a
+  // single Undo always gets you back — important when the model surprises you.
+  let running: string | null = $state(null);
+  let previous: string | null = $state(null);
+  let askOpen = $state(false);
+  let question = $state("");
+
+  const actionsReady = $derived(
+    !!transcript.trim() && !!settings.cfAccountId && !!settings.cfApiToken,
+  );
+
+  async function applyAction(action: TextAction) {
+    if (running) return;
+    if (action.needsQuestion && !askOpen) {
+      askOpen = true;
+      return;
+    }
+    if (!actionsReady) {
+      errorMsg = !transcript.trim()
+        ? "Dictate something first."
+        : "Add your Cloudflare keys in Settings to use AI actions.";
+      return;
+    }
+
+    errorMsg = "";
+    running = action.id;
+    const before = transcript;
+    const result = await runTextAction(
+      action,
+      transcript,
+      $state.snapshot(settings),
+      question,
+    );
+    running = null;
+
+    if (!result.ok) {
+      errorMsg = result.error;
+      return;
+    }
+    previous = before;
+    transcript = result.text;
+    askOpen = false;
+    question = "";
+    status = action.id === "ask" ? "Answer — copied" : "Updated — copied";
+    void copyOut(result.text);
+  }
+
+  function undo() {
+    if (previous === null) return;
+    transcript = previous;
+    previous = null;
+    status = "Reverted";
+    void copyOut(transcript);
   }
 </script>
 
@@ -222,6 +282,55 @@
       <p class="shrink-0 truncate text-[14px] text-grey">… {tentative}</p>
     {/if}
   </section>
+
+  <!-- AI actions -->
+  <div class="shrink-0">
+    {#if askOpen}
+      <div class="mb-2 flex gap-2">
+        <input
+          class="min-w-0 flex-1 rounded-xl border border-line bg-face px-3 py-2.5 text-[16px]"
+          placeholder="Ask about this text…"
+          bind:value={question}
+          onkeydown={(e) => e.key === "Enter" && applyAction(TEXT_ACTIONS[3])}
+        />
+        <button
+          class="pillbtn pillbtn-dark shrink-0"
+          onclick={() => applyAction(TEXT_ACTIONS[3])}
+          disabled={!!running}
+        >
+          {running === "ask" ? "…" : "Go"}
+        </button>
+        <button class="pillbtn shrink-0" onclick={() => { askOpen = false; question = ""; }}>
+          ✕
+        </button>
+      </div>
+    {/if}
+
+    <div class="flex flex-wrap gap-2">
+      {#each TEXT_ACTIONS as action (action.id)}
+        <button
+          class="rounded-xl bg-face px-3.5 py-2 text-[13.5px] font-semibold shadow-sm transition-transform active:scale-95"
+          class:ring-2={askOpen && action.needsQuestion}
+          class:ring-accent={askOpen && action.needsQuestion}
+          disabled={!!running || (!actionsReady && !action.needsQuestion)}
+          style={!!running || (!actionsReady && !action.needsQuestion) ? "opacity:.45" : ""}
+          title={action.hint}
+          onclick={() => applyAction(action)}
+        >
+          {running === action.id ? "Working…" : action.label}
+        </button>
+      {/each}
+
+      {#if previous !== null}
+        <button
+          class="rounded-xl bg-panel px-3.5 py-2 text-[13.5px] font-semibold text-grey transition-transform active:scale-95"
+          onclick={undo}
+        >
+          ↩ Undo
+        </button>
+      {/if}
+    </div>
+  </div>
 
   <!-- actions -->
   <div class="flex shrink-0 items-center gap-2.5">
