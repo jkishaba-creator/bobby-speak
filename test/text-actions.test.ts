@@ -6,6 +6,7 @@ import {
   CUSTOM_ACTION_LIMITS,
   TEXT_ACTIONS,
   TONES,
+  chipsUsable,
   resolveActions,
   runTextAction,
   sanitizeCustomAction,
@@ -361,6 +362,19 @@ describe("sanitizeCustomAction", () => {
     );
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.action.id).toBe("id0");
+  });
+});
+
+describe("chipsUsable — the one gating rule for every surface", () => {
+  it("requires keys plus text when idle", () => {
+    expect(chipsUsable(false, "some text", settings())).toBe(true);
+    expect(chipsUsable(false, "   ", settings())).toBe(false);
+    expect(chipsUsable(false, "text", settings({ cfApiToken: "" }))).toBe(false);
+  });
+
+  it("requires only keys while recording (Whisper has no text until stop)", () => {
+    expect(chipsUsable(true, "", settings())).toBe(true);
+    expect(chipsUsable(true, "", settings({ cfAccountId: "" }))).toBe(false);
   });
 });
 

@@ -212,6 +212,23 @@ export function sanitizeCustomAction(
   return { ok: true, action: { id: input.id || newCustomId(), label, prompt } };
 }
 
+/**
+ * Whether tapping an action chip can do something useful right now — the ONE
+ * gating rule every surface (pop-out, web app) uses, so the behavior can't
+ * drift between them. While recording there may be no committed text yet
+ * (Whisper commits only on stop), but a tap is still meaningful — it finishes
+ * the take and applies — so mid-recording the gate is just the credentials.
+ * ("Ask" chips are exempt upstream: they open their question input first.)
+ */
+export function chipsUsable(
+  listening: boolean,
+  text: string,
+  settings: Settings,
+): boolean {
+  const keysReady = !!settings.cfAccountId && !!settings.cfApiToken;
+  return listening ? keysReady : keysReady && !!text.trim();
+}
+
 /** These can take longer than auto-polish; the user is watching a spinner. */
 export const ACTION_TIMEOUT_MS = 20000;
 

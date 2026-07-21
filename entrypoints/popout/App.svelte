@@ -11,6 +11,7 @@
   import {
     TEXT_ACTIONS,
     TONES,
+    chipsUsable,
     resolveActions,
     runTextAction,
     type TextAction,
@@ -232,13 +233,13 @@
   // the built-ins; only "ask" keeps its inline question input.
   const actions = $derived(resolveActions(settings));
 
-  const keysReady = $derived(!!settings.cfAccountId && !!settings.cfApiToken);
-  const actionsReady = $derived(!!transcriptText.trim() && keysReady);
+  const actionsReady = $derived(
+    !!transcriptText.trim() && !!settings.cfAccountId && !!settings.cfApiToken,
+  );
 
-  // While recording there may be no committed text yet (Whisper commits only
-  // on stop), but a chip tap is still meaningful — it finishes the take and
-  // applies. So mid-recording the gate is just the credentials.
-  const chipUsable = $derived(listening ? keysReady : actionsReady);
+  // The shared gate (src/ai/textActions.ts): keys-only while recording, keys
+  // plus text otherwise — one rule for the pop-out and the web app alike.
+  const chipUsable = $derived(chipsUsable(listening, transcriptText, settings));
 
   // Tone updates persist immediately so the choice carries into every window
   // and the next dictation, matching the built-in Settings surface.
