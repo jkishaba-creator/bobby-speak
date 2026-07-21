@@ -30,7 +30,7 @@ import java.net.URL
  * - Records 16kHz mono 16-bit PCM audio via AudioRecord.
  * - Prepends 44-byte WAV header and encodes Base64.
  * - Calls Cloudflare Whisper ASR (@cf/openai/whisper-large-v3-turbo).
- * - Calls Cloudflare Llama 3.3 (@cf/meta/llama-3.3-70b-instruct-fp8-fast) for smart formatting.
+ * - Calls Cloudflare Llama 3.3 (@cf/meta/llama-3.3-70b-instruct-fp8-fast) for smart formatting with exact Issue #6 system prompt.
  * - Commits clean text to current field via InputConnection.commitText().
  * - Configurable via BobbySettingsActivity.
  */
@@ -156,9 +156,14 @@ class BobbyInputMethodService : InputMethodService() {
     @android.annotation.SuppressLint("SetTextI18n")
     private fun stopDictation(btn: Button) {
         isRecording = false
-        audioRecord?.stop()
-        audioRecord?.release()
-        audioRecord = null
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            audioRecord = null
+        }
 
         btn.text = "🎤 Dictate"
         statusLabel.text = "⏳ Processing transcription via Cloudflare AI..."
@@ -250,10 +255,12 @@ class BobbyInputMethodService : InputMethodService() {
             readTimeout = 15000
         }
 
+        val systemPrompt = "You correct dictated text. Fix grammar, punctuation, capitalization, and sentence boundaries so it reads like clean writing. Keep the wording and meaning — do not add, remove, answer, or comment on the content. Reply with ONLY the corrected text, no preamble or quotes."
+
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "system")
-                put("content", "You are a voice dictation assistant. Fix grammar, capitalization, and punctuation. Remove filler words like 'um', 'uh'. Return ONLY the clean formatted text.")
+                put("content", systemPrompt)
             })
             put(JSONObject().apply {
                 put("role", "user")

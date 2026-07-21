@@ -1,6 +1,20 @@
+# Dependencies and build outputs
 node_modules/
 .output/
 .wxt/
 .DS_Store
 *.log
 stats.html
+
+# Local AI tooling
+.opencode/
+.contexty/
+.coordination/
+
+# Android Studio & Gradle local files
+.idea/
+*.iml
+mobile/android/.gradle/
+mobile/android/.idea/
+mobile/android/local.properties
+mobile/android/app/build/

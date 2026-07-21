@@ -4,13 +4,4 @@ export GRADLE_OPTS="-Xmx2048m -Dfile.encoding=UTF-8"
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Bobby Speak Android Keyboard — Gradle Wrapper"
 echo "Project directory: ${APP_DIR}"
-if command -v gradle >/dev/null 2>&1; then
-    exec gradle "$@"
-elif command -v java >/dev/null 2>&1; then
-    exec java -jar "${APP_DIR}/gradle/wrapper/gradle-wrapper.jar" "$@"
-else
-    echo "Error: Neither 'gradle' nor 'java' was found in PATH."
-    echo "To build from WSL/Linux: sudo apt update && sudo apt install -y openjdk-17-jdk gradle"
-    echo "To build from Windows: Open D:\\bobby-speak\\mobile\\android in Android Studio."
-    exit 1
-fi
+exec java -classpath "${APP_DIR}/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
