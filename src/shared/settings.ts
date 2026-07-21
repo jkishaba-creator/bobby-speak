@@ -6,17 +6,31 @@ import { DEFAULT_SETTINGS, type Settings } from "./types";
 // pipeline, provider, and processing code run unchanged on both.
 const KEY = "settings";
 
+// Cloudflare retires models; a saved setting can outlive the model it names
+// and every AI call then fails with "this model was deprecated".
+const RETIRED_MODELS = new Set([
+  "@cf/meta/llama-3.1-8b-instruct",
+  "@cf/meta/llama-3.1-8b-instruct-fast",
+  "@cf/meta/llama-3-8b-instruct",
+]);
+
+function migrate(settings: Settings): Settings {
+  return RETIRED_MODELS.has(settings.cfTextModel)
+    ? { ...settings, cfTextModel: DEFAULT_SETTINGS.cfTextModel }
+    : settings;
+}
+
 const hasChromeStorage =
   typeof chrome !== "undefined" && !!chrome?.storage?.local;
 
 export async function getSettings(): Promise<Settings> {
   if (hasChromeStorage) {
     const data = await chrome.storage.local.get(KEY);
-    return { ...DEFAULT_SETTINGS, ...(data[KEY] ?? {}) };
+    return migrate({ ...DEFAULT_SETTINGS, ...(data[KEY] ?? {}) });
   }
   try {
     const raw = localStorage.getItem(KEY);
-    return { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
+    return migrate({ ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) });
   } catch {
     // Private mode, disabled storage, or corrupt JSON — defaults still work.
     return { ...DEFAULT_SETTINGS };

@@ -36,7 +36,7 @@ describe("acceptPolish", () => {
 describe("grammarStage via Cloudflare", () => {
   it("posts to the Workers AI run endpoint and returns the formatted text", async () => {
     const fetchMock = vi.fn(async (url: string, init: any) => {
-      expect(url).toContain("/accounts/acct123/ai/run/@cf/meta/llama-3.1-8b-instruct");
+      expect(url).toContain("/accounts/acct123/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast");
       expect(init.headers.Authorization).toBe("Bearer tok456");
       const body = JSON.parse(init.body);
       expect(body.messages[0].role).toBe("system");

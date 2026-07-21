@@ -97,7 +97,7 @@ export async function runTextAction(
     return { ok: false, error: "Add your Cloudflare keys in Settings first." };
   }
 
-  const model = settings.cfTextModel || "@cf/meta/llama-3.1-8b-instruct";
+  const model = settings.cfTextModel || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   const url =
     "https://api.cloudflare.com/client/v4/accounts/" +
     encodeURIComponent(cfAccountId) +

@@ -110,7 +110,7 @@ async function polishCloudflare(
 ): Promise<string | null> {
   const { cfAccountId, cfApiToken } = settings;
   if (!cfAccountId || !cfApiToken) return null;
-  const model = settings.cfTextModel || "@cf/meta/llama-3.1-8b-instruct";
+  const model = settings.cfTextModel || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
   // Model IDs contain "@" and "/" that Cloudflare wants literal in the path
   // (same as the Whisper engine), so the id is appended raw.

@@ -298,8 +298,8 @@
               class="max-w-[55vw] rounded-xl border border-line bg-face px-3 py-1.5 text-[13.5px]"
               bind:value={settings.cfTextModel} onchange={persist}
             >
-              <option value="@cf/meta/llama-3.1-8b-instruct">Llama 3.1 8B (fast)</option>
               <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">Llama 3.3 70B (best)</option>
+              <option value="@cf/mistralai/mistral-small-3.1-24b-instruct">Mistral Small 24B (balanced)</option>
               <option value="@cf/meta/llama-3.2-3b-instruct">Llama 3.2 3B (fastest)</option>
             </select>
           </label>

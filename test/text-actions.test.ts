@@ -50,7 +50,7 @@ describe("action catalog", () => {
 describe("runTextAction", () => {
   it("sends the action's system prompt and the text, and returns the result", async () => {
     const fetchMock = vi.fn(async (url: string, init: any) => {
-      expect(url).toContain("/accounts/acct123/ai/run/@cf/meta/llama-3.1-8b-instruct");
+      expect(url).toContain("/accounts/acct123/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast");
       expect(init.headers.Authorization).toBe("Bearer tok456");
       const body = JSON.parse(init.body);
       expect(body.messages[0].content).toBe(action("clean").system);
@@ -148,5 +148,17 @@ describe("runTextAction", () => {
     vi.stubGlobal("fetch", mockResponse('"Sharper version."'));
     const res = await runTextAction(action("sharpen"), "a wordy version", settings());
     expect(res).toEqual({ ok: true, text: "Sharper version." });
+  });
+});
+
+describe("model defaults", () => {
+  it("does not ship a retired model as the default", () => {
+    // Cloudflare retired llama-3.1-8b-instruct on 2026-05-30; shipping a dead
+    // model as the default silently breaks every AI call.
+    expect([
+      "@cf/meta/llama-3.1-8b-instruct",
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+      "@cf/meta/llama-3-8b-instruct",
+    ]).not.toContain(DEFAULT_SETTINGS.cfTextModel);
   });
 });

@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   spokenPunctuation: true,
   aiPolish: true,
   polishProvider: "chrome",
-  cfTextModel: "@cf/meta/llama-3.1-8b-instruct",
+  cfTextModel: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   customWords: [],
   historyLimit: 25,
   cfAccountId: "",
