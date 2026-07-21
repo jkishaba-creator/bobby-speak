@@ -32,7 +32,9 @@ No account, no subscription, no telemetry, no server of ours. Ever.
   punctuation ("period", "new line") honored, fuzzy custom-word correction
   for names and jargon.
 - **Pop-out window** — a small always-available surface that keeps your
-  clipboard preloaded as you speak: dictate there, paste anywhere.
+  clipboard preloaded as you speak: dictate there, paste anywhere. One-tap AI
+  action chips — **Clean**, **Summarize**, **Sharpen**, and **Ask** — sit
+  under the transcript, each with an Undo.
 - **First-run onboarding** — mic permission, shortcut check, and a try-it box,
   all up front. After that page, it just works.
 - **Local history** — recent transcriptions on this device only, capped,
@@ -54,6 +56,12 @@ any app. Underneath the transcript, one-tap AI actions — **Clean**,
 — each with an Undo. Android can use the free built-in engine; iOS needs Cloudflare keys
 (Safari has no Web Speech API). It shares `src/` with the extension, so
 there's one pipeline, one set of design tokens, two shells.
+
+The AI actions call Cloudflare through a same-origin `/api/ai` Pages
+Function to stay CORS-safe, so the web build needs to be hosted somewhere
+that runs it — Cloudflare Pages — rather than any static file host.
+Mobile PRs touching `mobile/android/**` also get a debug APK built
+automatically as a downloadable CI artifact, for sideload testing.
 
 ## Install (Chrome extension)
 
@@ -96,7 +104,7 @@ Mic ─ frames ─▶ ASR provider ─ events ─▶ staged processing ─▶ ov
 ```
 
 Every layer is pluggable: an ASR engine is one file implementing
-`AsrProvider`, a text processor is one pure function. 70 tests cover the
+`AsrProvider`, a text processor is one pure function. 78 tests cover the
 pipeline, the grammar stages, the audio math, and the workflow files.
 
 ```bash
