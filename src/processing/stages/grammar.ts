@@ -12,6 +12,7 @@
 // or failure the rule-based text is kept.
 
 import type { Settings } from "../../shared/types";
+import { runCloudflareModel } from "../../ai/cloudflareClient";
 import type { AsyncStage } from "../processor";
 
 const SYSTEM_PROMPT =
@@ -112,14 +113,6 @@ async function polishCloudflare(
   if (!cfAccountId || !cfApiToken) return null;
   const model = settings.cfTextModel || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-  // Model IDs contain "@" and "/" that Cloudflare wants literal in the path
-  // (same as the Whisper engine), so the id is appended raw.
-  const url =
-    "https://api.cloudflare.com/client/v4/accounts/" +
-    encodeURIComponent(cfAccountId) +
-    "/ai/run/" +
-    model;
-
   const body = {
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
@@ -130,14 +123,8 @@ async function polishCloudflare(
 
   try {
     const json = await withTimeout(
-      fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + cfApiToken,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      }).then((r) => r.json()),
+      runCloudflareModel(model, { accountId: cfAccountId, apiToken: cfApiToken }, body)
+        .then((r) => r.json()),
       CLOUD_BUDGET_MS,
     );
     if (!json || !json.success) return null;

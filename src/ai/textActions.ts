@@ -10,6 +10,7 @@
 // pop-out without reimplementing anything.
 
 import type { Settings } from "../shared/types";
+import { runCloudflareModel } from "./cloudflareClient";
 
 export type TextActionId = "clean" | "summarize" | "sharpen" | "ask";
 
@@ -98,31 +99,23 @@ export async function runTextAction(
   }
 
   const model = settings.cfTextModel || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-  const url =
-    "https://api.cloudflare.com/client/v4/accounts/" +
-    encodeURIComponent(cfAccountId) +
-    "/ai/run/" +
-    model;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ACTION_TIMEOUT_MS);
 
   try {
-    const resp = await fetch(url, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: "Bearer " + cfApiToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const resp = await runCloudflareModel(
+      model,
+      { accountId: cfAccountId, apiToken: cfApiToken },
+      {
         messages: [
           { role: "system", content: action.system },
           { role: "user", content: buildUserMessage(action, text, question) },
         ],
         temperature: 0.3,
-      }),
-    });
+      },
+      controller.signal,
+    );
 
     if (resp.status === 401 || resp.status === 403) {
       return { ok: false, error: "Cloudflare rejected your API token." };
