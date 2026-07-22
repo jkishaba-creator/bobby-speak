@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="http://schemas.android.com/apk/res/android">
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:isDefault="true"
+    android:settingsActivity="com.bobbyspeak.keyboard.BobbySettingsActivity"
+    android:supportsSwitchingToNextInputMethod="false">
     <subtype
-        android:label="English (US)"
+        android:label="English (US) - Bobby Speak Dictation"
         android:imeSubtypeLocale="en_US"
         android:imeSubtypeMode="keyboard" />
 </input-method>

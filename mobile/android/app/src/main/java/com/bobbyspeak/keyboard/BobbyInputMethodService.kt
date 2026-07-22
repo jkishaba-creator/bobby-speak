@@ -9,67 +9,109 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Base64
+import android.util.Log
 import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import kotlinx.coroutines.*
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Bobby Speak Android Dictation Keyboard (InputMethodService).
  *
- * Implements Issue #7 MVP:
- * - Shows a simple QWERTY & dictation UI.
+ * Implements Issue #7 MVP & Issue #6 system prompt:
+ * - Always forces input view visibility on screen via onEvaluateInputViewShown.
+ * - Shows full-width dictation & editing panel.
  * - Records 16kHz mono 16-bit PCM audio via AudioRecord.
  * - Prepends 44-byte WAV header and encodes Base64.
  * - Calls Cloudflare Whisper ASR (@cf/openai/whisper-large-v3-turbo).
- * - Calls Cloudflare Llama 3.3 (@cf/meta/llama-3.3-70b-instruct-fp8-fast) for smart formatting with exact Issue #6 system prompt.
+ * - Calls Cloudflare Llama 3.3 (@cf/meta/llama-3.3-70b-instruct-fp8-fast) for smart formatting.
  * - Commits clean text to current field via InputConnection.commitText().
  * - Configurable via BobbySettingsActivity.
  */
 class BobbyInputMethodService : InputMethodService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val cloudflareClient = CloudflareClient()
+    @Volatile
     private var isRecording = false
     private var audioRecord: AudioRecord? = null
+    private var recordingJob: Job? = null
     private val sampleRate = 16000
     private var pcmOutputStream: ByteArrayOutputStream? = null
 
     private lateinit var statusLabel: TextView
+    private lateinit var micButton: Button
+
+    companion object {
+        private const val TAG = "BobbyIME"
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "Service onCreate called")
+    }
+
+    override fun onEvaluateInputViewShown(): Boolean {
+        super.onEvaluateInputViewShown()
+        return true // Always force soft keyboard view on screen regardless of hardware keyboard!
+    }
+
+    override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
+        return true
+    }
+
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        if (::statusLabel.isInitialized) {
+            showIdleStatus()
+        }
+    }
 
     @android.annotation.SuppressLint("SetTextI18n")
     override fun onCreateInputView(): View {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 16, 16, 16)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setBackgroundColor(android.graphics.Color.parseColor("#0F172A")) // Modern Dark Blue
+            setPadding(32, 32, 32, 32)
         }
 
         statusLabel = TextView(this).apply {
-            text = "Ready to dictate"
-            textSize = 13f
-            setPadding(0, 0, 0, 8)
+            text = "🟢 Ready to dictate via Cloudflare AI"
+            setTextColor(android.graphics.Color.parseColor("#10B981")) // Green Ready Indicator
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, 16)
         }
 
-        val micButton = Button(this).apply {
-            text = "🎤 Dictate"
+        micButton = Button(this).apply {
+            text = "🎤 TAP ME TO DICTATE"
+            textSize = 16f
+            setBackgroundColor(android.graphics.Color.parseColor("#E11D48")) // Red Accent
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(20, 20, 20, 20)
             setOnClickListener {
                 if (!isRecording) {
-                    startDictation(this)
+                    startDictation()
                 } else {
-                    stopDictation(this)
+                    stopDictation()
                 }
             }
         }
 
         val settingsButton = Button(this).apply {
-            text = "⚙ Settings"
+            text = "⚙ Settings & Connection Check"
+            textSize = 14f
+            setBackgroundColor(android.graphics.Color.parseColor("#334155"))
+            setTextColor(android.graphics.Color.WHITE)
             setOnClickListener {
                 val intent = Intent(this@BobbyInputMethodService, BobbySettingsActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -80,6 +122,9 @@ class BobbyInputMethodService : InputMethodService() {
 
         val spaceButton = Button(this).apply {
             text = "Space"
+            textSize = 14f
+            setBackgroundColor(android.graphics.Color.parseColor("#475569"))
+            setTextColor(android.graphics.Color.WHITE)
             setOnClickListener {
                 currentInputConnection?.commitText(" ", 1)
             }
@@ -87,6 +132,9 @@ class BobbyInputMethodService : InputMethodService() {
 
         val deleteButton = Button(this).apply {
             text = "⌫ Delete"
+            textSize = 14f
+            setBackgroundColor(android.graphics.Color.parseColor("#475569"))
+            setTextColor(android.graphics.Color.WHITE)
             setOnClickListener {
                 currentInputConnection?.deleteSurroundingText(1, 0)
             }
@@ -94,24 +142,39 @@ class BobbyInputMethodService : InputMethodService() {
 
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(micButton)
-            addView(settingsButton)
+            addView(micButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
+            addView(settingsButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
 
         val row2 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(spaceButton)
-            addView(deleteButton)
+            setPadding(0, 12, 0, 0)
+            addView(spaceButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
+            addView(deleteButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
 
         layout.addView(statusLabel)
         layout.addView(row1)
         layout.addView(row2)
+        showIdleStatus()
         return layout
     }
 
+    private fun showIdleStatus() {
+        val verified = getSharedPreferences("bobby_speak_prefs", Context.MODE_PRIVATE)
+            .getBoolean("cf_verified", false)
+        statusLabel.text = if (verified) {
+            "🟢 Ready to dictate via Cloudflare AI"
+        } else {
+            "⚠️ Finish Cloudflare setup before dictating"
+        }
+        statusLabel.setTextColor(
+            android.graphics.Color.parseColor(if (verified) "#10B981" else "#F59E0B")
+        )
+    }
+
     @android.annotation.SuppressLint("SetTextI18n")
-    private fun startDictation(btn: Button) {
+    private fun startDictation() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             val intent = Intent(this, PermissionActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -121,58 +184,129 @@ class BobbyInputMethodService : InputMethodService() {
             return
         }
 
-        val bufferSize = AudioRecord.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
+        try {
+            val minBufSize = AudioRecord.getMinBufferSize(
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
+            val bufferSize = Math.max(minBufSize, 4096)
 
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            sampleRate,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            bufferSize
-        )
+            val recorder = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufferSize
+            )
+            audioRecord = recorder
 
-        pcmOutputStream = ByteArrayOutputStream()
-        audioRecord?.startRecording()
-        isRecording = true
+            if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+                recorder.release()
+                audioRecord = null
+                statusLabel.text = "❌ AudioRecord initialization failed"
+                Toast.makeText(this, "AudioRecord init failed", Toast.LENGTH_SHORT).show()
+                return
+            }
 
-        btn.text = "⏹ Stop & Transcribe"
-        statusLabel.text = "🔴 Recording audio (16kHz mono)..."
+            val outputStream = ByteArrayOutputStream()
+            pcmOutputStream = outputStream
+            recorder.startRecording()
+            isRecording = true
+
+            micButton.text = "⏹ STOP & TRANSCRIBE"
+            micButton.setBackgroundColor(android.graphics.Color.parseColor("#DC2626"))
+            statusLabel.text = "🔴 Recording audio (16kHz mono)... Speak now!"
+            statusLabel.setTextColor(android.graphics.Color.parseColor("#EF4444"))
+            Toast.makeText(this, "🔴 Recording started... Speak into mic!", Toast.LENGTH_SHORT).show()
+
+            recordingJob = serviceScope.launch {
+                val data = ByteArray(bufferSize)
+                try {
+                    while (isRecording) {
+                        val read = recorder.read(data, 0, data.size)
+                        if (read > 0) {
+                            outputStream.write(data, 0, read)
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (isRecording) Log.e(TAG, "Audio capture failed", e)
+                }
+            }
+        } catch (e: Exception) {
+            isRecording = false
+            try {
+                audioRecord?.release()
+            } catch (_: Exception) {
+                // The original mic exception is more useful.
+            }
+            audioRecord = null
+            Log.e(TAG, "Error starting dictation", e)
+            statusLabel.text = "❌ Mic error: ${e.message}"
+            statusLabel.setTextColor(android.graphics.Color.parseColor("#F87171"))
+            Toast.makeText(this, "Mic error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @android.annotation.SuppressLint("SetTextI18n")
+    private fun stopDictation() {
+        isRecording = false
+        val recorder = audioRecord
+        audioRecord = null
+        try {
+            recorder?.stop()
+            recorder?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping audioRecord", e)
+        }
+
+        micButton.text = "🎤 TAP ME TO DICTATE"
+        micButton.setBackgroundColor(android.graphics.Color.parseColor("#E11D48"))
+        micButton.isEnabled = false
+        statusLabel.text = "⏳ Processing transcription via Cloudflare AI..."
+        statusLabel.setTextColor(android.graphics.Color.parseColor("#F59E0B"))
+
+        val completedCapture = recordingJob
+        recordingJob = null
+        val completedOutput = pcmOutputStream
+        pcmOutputStream = null
 
         serviceScope.launch {
-            val data = ByteArray(bufferSize)
-            while (isRecording) {
-                val read = audioRecord?.read(data, 0, data.size) ?: 0
-                if (read > 0) {
-                    pcmOutputStream?.write(data, 0, read)
+            try {
+                completedCapture?.join()
+                processCapturedAudio(completedOutput?.toByteArray() ?: ByteArray(0))
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected dictation error", e)
+                withContext(Dispatchers.Main) {
+                    statusLabel.text = "❌ Error: ${e.localizedMessage}"
+                    statusLabel.setTextColor(android.graphics.Color.parseColor("#F87171"))
+                    Toast.makeText(
+                        this@BobbyInputMethodService,
+                        "Dictation error: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
+            } finally {
+                withContext(Dispatchers.Main) { micButton.isEnabled = true }
             }
         }
     }
 
     @android.annotation.SuppressLint("SetTextI18n")
-    private fun stopDictation(btn: Button) {
-        isRecording = false
-        try {
-            audioRecord?.stop()
-            audioRecord?.release()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            audioRecord = null
+    private suspend fun processCapturedAudio(rawPcm: ByteArray) {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(
+                this@BobbyInputMethodService,
+                "Captured ${rawPcm.size} bytes of audio",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
-        btn.text = "🎤 Dictate"
-        statusLabel.text = "⏳ Processing transcription via Cloudflare AI..."
-
-        val rawPcm = pcmOutputStream?.toByteArray() ?: ByteArray(0)
-        pcmOutputStream = null
-
         if (rawPcm.isEmpty()) {
-            statusLabel.text = "No audio recorded."
+            withContext(Dispatchers.Main) {
+                statusLabel.text = "⚠️ No audio recorded (0 bytes)."
+                statusLabel.setTextColor(android.graphics.Color.parseColor("#F59E0B"))
+            }
             return
         }
 
@@ -180,106 +314,89 @@ class BobbyInputMethodService : InputMethodService() {
         val base64Wav = Base64.encodeToString(wavBytes, Base64.NO_WRAP)
 
         val prefs = getSharedPreferences("bobby_speak_prefs", Context.MODE_PRIVATE)
-        val accountId = prefs.getString("cf_account_id", "") ?: ""
-        val apiToken = prefs.getString("cf_api_token", "") ?: ""
+        val credentials = CloudflareCredentials.fromRaw(
+            prefs.getString("cf_account_id", "") ?: "",
+            prefs.getString("cf_api_token", "") ?: ""
+        )
 
-        if (accountId.isEmpty() || apiToken.isEmpty()) {
-            statusLabel.text = "⚠️ Please set Cloudflare Account ID & API Token in ⚙ Settings"
-            Toast.makeText(this, "Set Cloudflare credentials in ⚙ Settings", Toast.LENGTH_LONG).show()
+        if (!credentials.isComplete) {
+            withContext(Dispatchers.Main) {
+                statusLabel.text = "⚠️ Please set Cloudflare Account ID & API Token in ⚙ Settings"
+                statusLabel.setTextColor(android.graphics.Color.parseColor("#F87171"))
+                Toast.makeText(
+                    this@BobbyInputMethodService,
+                    "Set Cloudflare credentials in ⚙ Settings",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             return
         }
 
-        serviceScope.launch {
-            try {
-                // Step 1: Speech-to-Text via Cloudflare Whisper
-                val transcript = callCloudflareWhisper(accountId, apiToken, base64Wav)
-
-                if (transcript.isNullOrBlank()) {
-                    withContext(Dispatchers.Main) {
-                        statusLabel.text = "No speech recognized."
-                    }
-                    return@launch
+        val transcript = when (
+            val result = cloudflareClient.transcribe(credentials, base64Wav)
+        ) {
+            is CloudflareResult.Success -> result.value
+            is CloudflareResult.Failure -> {
+                if (result.kind == CloudflareFailureKind.AUTHORIZATION ||
+                    result.kind == CloudflareFailureKind.CREDENTIALS ||
+                    result.kind == CloudflareFailureKind.NOT_FOUND
+                ) {
+                    getSharedPreferences("bobby_speak_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .putBoolean("cf_verified", false)
+                        .apply()
                 }
-
-                // Step 2: Smart Formatting via Cloudflare Llama 3.3
-                val formattedText = callCloudflareLlama(accountId, apiToken, transcript) ?: transcript
-
                 withContext(Dispatchers.Main) {
-                    currentInputConnection?.commitText(formattedText, 1)
-                    statusLabel.text = "✓ Dictation committed!"
+                    statusLabel.text = "❌ Transcription failed: ${result.message}"
+                    statusLabel.setTextColor(android.graphics.Color.parseColor("#F87171"))
+                    Toast.makeText(
+                        this@BobbyInputMethodService,
+                        "Transcription failed: ${result.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    statusLabel.text = "Error: ${e.localizedMessage}"
-                    Toast.makeText(this@BobbyInputMethodService, "Cloudflare API Error: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                return
             }
         }
-    }
 
-    private fun callCloudflareWhisper(accountId: String, token: String, base64Audio: String): String? {
-        val url = URL("https://api.cloudflare.com/client/v4/accounts/$accountId/ai/run/@cf/openai/whisper-large-v3-turbo")
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("Content-Type", "application/json")
-            doOutput = true
-            connectTimeout = 15000
-            readTimeout = 15000
+        getSharedPreferences("bobby_speak_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("cf_verified", true)
+            .apply()
+
+        val polishResult = cloudflareClient.polish(credentials, transcript)
+        val textToCommit = when (polishResult) {
+            is CloudflareResult.Success -> polishResult.value
+            is CloudflareResult.Failure -> transcript
         }
 
-        val jsonBody = JSONObject().apply {
-            put("audio", base64Audio)
-            put("task", "transcribe")
-        }
-
-        OutputStreamWriter(conn.outputStream).use { it.write(jsonBody.toString()) }
-
-        return if (conn.responseCode == 200) {
-            val responseText = conn.inputStream.bufferedReader().use { it.readText() }
-            val jsonResp = JSONObject(responseText)
-            jsonResp.optJSONObject("result")?.optString("text")
-        } else {
-            null
-        }
-    }
-
-    private fun callCloudflareLlama(accountId: String, token: String, rawText: String): String? {
-        val url = URL("https://api.cloudflare.com/client/v4/accounts/$accountId/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast")
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("Content-Type", "application/json")
-            doOutput = true
-            connectTimeout = 15000
-            readTimeout = 15000
-        }
-
-        val systemPrompt = "You correct dictated text. Fix grammar, punctuation, capitalization, and sentence boundaries so it reads like clean writing. Keep the wording and meaning — do not add, remove, answer, or comment on the content. Reply with ONLY the corrected text, no preamble or quotes."
-
-        val messages = JSONArray().apply {
-            put(JSONObject().apply {
-                put("role", "system")
-                put("content", systemPrompt)
-            })
-            put(JSONObject().apply {
-                put("role", "user")
-                put("content", rawText)
-            })
-        }
-
-        val jsonBody = JSONObject().apply {
-            put("messages", messages)
-        }
-
-        OutputStreamWriter(conn.outputStream).use { it.write(jsonBody.toString()) }
-
-        return if (conn.responseCode == 200) {
-            val responseText = conn.inputStream.bufferedReader().use { it.readText() }
-            val jsonResp = JSONObject(responseText)
-            jsonResp.optJSONObject("result")?.optString("response")
-        } else {
-            null
+        withContext(Dispatchers.Main) {
+            val inputConnection = currentInputConnection
+            if (inputConnection == null || !inputConnection.commitText(textToCommit, 1)) {
+                statusLabel.text = "❌ No active text field to receive dictation"
+                statusLabel.setTextColor(android.graphics.Color.parseColor("#F87171"))
+                Toast.makeText(
+                    this@BobbyInputMethodService,
+                    "Tap a text field and try again",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else if (polishResult is CloudflareResult.Failure) {
+                statusLabel.text = "✓ Dictation typed; smart formatting was unavailable"
+                statusLabel.setTextColor(android.graphics.Color.parseColor("#F59E0B"))
+                Toast.makeText(
+                    this@BobbyInputMethodService,
+                    "Typed the transcript without AI formatting: ${polishResult.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                statusLabel.text = "✓ Dictation typed successfully"
+                statusLabel.setTextColor(android.graphics.Color.parseColor("#10B981"))
+                Toast.makeText(
+                    this@BobbyInputMethodService,
+                    "Dictation typed",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 
@@ -340,12 +457,17 @@ class BobbyInputMethodService : InputMethodService() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        serviceScope.cancel()
+        isRecording = false
         try {
+            if (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                audioRecord?.stop()
+            }
             audioRecord?.release()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error releasing AudioRecord", e)
         }
+        recordingJob?.cancel()
+        serviceScope.cancel()
+        super.onDestroy()
     }
 }
