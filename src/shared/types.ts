@@ -35,6 +35,13 @@ export interface CustomAction {
 /** How the result should sound. "none" leaves the wording untouched. */
 export type ToneId = "none" | "professional" | "direct" | "confident";
 
+/** A user-saved reusable text snippet (e.g. a prompt dictated into AI tools). */
+export interface SavedPrompt {
+  id: string;
+  name: string;
+  text: string;
+}
+
 export interface Settings {
   engine: EngineId;
   language: string;
@@ -56,6 +63,8 @@ export interface Settings {
   actionOrder: string[];
   /** Voice appended to toneable actions; "none" appends nothing. */
   tone: ToneId;
+  /** User-saved text snippets, in creation order. */
+  savedPrompts: SavedPrompt[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -75,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hiddenActions: [],
   actionOrder: [],
   tone: "none",
+  savedPrompts: [],
 };
 
 // ---------------------------------------------------------------------------

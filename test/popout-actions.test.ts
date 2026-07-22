@@ -56,4 +56,15 @@ describe("pop-out AI actions wiring", () => {
     // And a result that lands after a NEW recording started is dropped.
     expect(source).toMatch(/running\s*=\s*null;[\s\S]{0,200}if\s*\(listening\)\s*return/);
   });
+
+  it("wires saved prompts through the shared core, not a local reimplementation", () => {
+    // The pop-out must import the shared validation/suggestion helpers rather
+    // than forking its own copy, and drive the strip off settings.savedPrompts.
+    expect(source).toMatch(
+      /import\s*\{[^}]*\bsanitizeSavedPrompt\b[^}]*\bsuggestPromptName\b[^}]*\}\s*from\s*["'][^"']*shared\/prompts["']/s,
+    );
+    expect(source).toContain("settings.savedPrompts");
+    // Chips must be disabled while listening or while an AI action is running.
+    expect(source).toMatch(/savedUsable\s*=\s*\$derived\([^)]*!listening[^)]*!running/);
+  });
 });

@@ -51,6 +51,11 @@ page applies to Clean, Sharpen, and every custom chip — never Summarize or
 Ask. Manage it all from the extension's Options page or the mobile app's
 settings sheet.
 
+Reusable text — a whole prompt, not just an instruction — gets its own
+library: save up to 20 snippets, then tap one from the **Saved** strip above
+the transcript to load and copy it instantly. Manage names and text from the
+same Options page or settings sheet.
+
 ## On mobile
 
 The same pipeline runs as an installable web app — no store, no approval:

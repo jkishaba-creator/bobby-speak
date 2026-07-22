@@ -10,6 +10,11 @@
     CUSTOM_ACTION_LIMITS,
     type TextAction,
   } from "../../src/ai/textActions";
+  import {
+    SAVED_PROMPT_LIMITS,
+    sanitizeSavedPrompt,
+  } from "../../src/shared/prompts";
+  import type { SavedPrompt } from "../../src/shared/types";
 
   const hasChrome =
     typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
@@ -191,6 +196,52 @@
     settings.hiddenActions = settings.hiddenActions.filter((x) => x !== action.id);
     settings.actionOrder = settings.actionOrder.filter((x) => x !== action.id);
     if (editingId === bareId) cancelEdit();
+    persist();
+  }
+
+  // --- Saved prompts ------------------------------------------------------
+  // Reusable text snippets. Same add/edit/delete shape as the AI chips above.
+  let promptName = $state("");
+  let promptText = $state("");
+  let promptError = $state("");
+  let editingPromptId: string | null = $state(null); // prompt id, or null
+
+  const atPromptLimit = $derived(
+    settings.savedPrompts.length >= SAVED_PROMPT_LIMITS.maxCount,
+  );
+
+  function submitPrompt() {
+    const res = sanitizeSavedPrompt(
+      { id: editingPromptId ?? undefined, name: promptName, text: promptText },
+      settings.savedPrompts,
+    );
+    if (!res.ok) { promptError = res.error; return; }
+    const list = settings.savedPrompts.slice();
+    const idx = list.findIndex((p) => p.id === res.prompt.id);
+    if (idx >= 0) list[idx] = res.prompt;
+    else list.push(res.prompt);
+    settings.savedPrompts = list;
+    cancelPromptEdit();
+    persist();
+  }
+
+  function startPromptEdit(prompt: SavedPrompt) {
+    editingPromptId = prompt.id;
+    promptName = prompt.name;
+    promptText = prompt.text;
+    promptError = "";
+  }
+
+  function cancelPromptEdit() {
+    editingPromptId = null;
+    promptName = "";
+    promptText = "";
+    promptError = "";
+  }
+
+  function deletePrompt(prompt: SavedPrompt) {
+    settings.savedPrompts = settings.savedPrompts.filter((p) => p.id !== prompt.id);
+    if (editingPromptId === prompt.id) cancelPromptEdit();
     persist();
   }
 </script>
@@ -516,6 +567,76 @@
           >{editingId ? "Save" : "Add action"}</button>
           {#if editingId}
             <button class="pillbtn" onclick={cancelEdit}>Cancel</button>
+          {/if}
+        </div>
+      </div>
+    </section>
+
+    <!-- Saved prompts -->
+    <section class="rounded-[22px] bg-screen px-5 py-4 shadow-sm">
+      <h2 class="mb-1 text-[13px] font-bold uppercase tracking-wider text-grey">Saved prompts</h2>
+      <p class="text-[12.5px] text-grey">
+        Reusable snippets you drop into a transcript with one tap. Add the
+        prompts you dictate into AI tools again and again.
+      </p>
+
+      <!-- Prompt list -->
+      {#each settings.savedPrompts as prompt (prompt.id)}
+        <div class="flex items-center justify-between gap-3.5 border-b border-line py-3">
+          <span class="min-w-0">
+            <span class="font-semibold">{prompt.name}</span>
+            <span class="mt-0.5 block truncate text-[12.5px] text-grey">{prompt.text}</span>
+          </span>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <button
+              class="pillbtn !px-3 !py-1.5 !text-[12px]"
+              onclick={() => startPromptEdit(prompt)}
+            >Edit</button>
+            <button
+              class="grid h-[26px] w-[26px] place-items-center rounded-full bg-panel text-[11px] text-grey hover:text-ink"
+              aria-label={"Delete " + prompt.name}
+              onclick={() => deletePrompt(prompt)}
+            >✕</button>
+          </div>
+        </div>
+      {/each}
+
+      <!-- Add / edit form -->
+      <div class="mt-3 flex flex-col gap-2.5">
+        <span class="text-[12.5px] font-semibold text-grey">
+          {editingPromptId ? "Edit prompt" : "Add a prompt"}
+        </span>
+        <input
+          class="w-full rounded-xl border border-line bg-face px-3 py-1.5 text-[13.5px]"
+          placeholder="Prompt name" maxlength={SAVED_PROMPT_LIMITS.maxName}
+          bind:value={promptName}
+        />
+        <textarea
+          class="min-h-[68px] w-full resize-y rounded-xl border border-line bg-face px-3 py-1.5 text-[13.5px]"
+          placeholder="The snippet text you want to reuse."
+          maxlength={SAVED_PROMPT_LIMITS.maxText}
+          bind:value={promptText}
+        ></textarea>
+        <span class="self-end text-[11px] text-grey">
+          {promptText.length}/{SAVED_PROMPT_LIMITS.maxText}
+        </span>
+        {#if promptError}
+          <p class="text-[12.5px] font-semibold text-accent">{promptError}</p>
+        {/if}
+        {#if atPromptLimit && !editingPromptId}
+          <p class="rounded-lg bg-panel px-3 py-2 text-[12.5px] text-grey">
+            You've saved {SAVED_PROMPT_LIMITS.maxCount} prompts — edit or remove
+            one to add another.
+          </p>
+        {/if}
+        <div class="flex items-center gap-2.5">
+          <button
+            class="pillbtn pillbtn-dark disabled:cursor-default disabled:opacity-40"
+            disabled={atPromptLimit && !editingPromptId}
+            onclick={submitPrompt}
+          >{editingPromptId ? "Save" : "Add prompt"}</button>
+          {#if editingPromptId}
+            <button class="pillbtn" onclick={cancelPromptEdit}>Cancel</button>
           {/if}
         </div>
       </div>

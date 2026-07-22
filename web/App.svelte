@@ -13,6 +13,7 @@
     DEFAULT_SETTINGS,
     type CustomAction,
     type EngineId,
+    type SavedPrompt,
     type Settings,
     type ToneId,
   } from "../src/shared/types";
@@ -26,6 +27,11 @@
     sanitizeCustomAction,
     type TextAction,
   } from "../src/ai/textActions";
+  import {
+    SAVED_PROMPT_LIMITS,
+    sanitizeSavedPrompt,
+    suggestPromptName,
+  } from "../src/shared/prompts";
 
   // "Ask" is a fixed built-in; its inline question input needs a stable handle
   // even if the chip is reordered or hidden from the row.
@@ -348,6 +354,106 @@
     await tick();
     actionsSectionEl?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  // ---- Saved prompts (quick-use strip + Save flow + settings editor) ----
+  // Reusable snippets validated through the shared core helper. Tapping a chip
+  // stashes the current transcript in the same undo slot the AI actions use,
+  // so one Undo always brings back what was there.
+  function usePrompt(prompt: SavedPrompt) {
+    previous = transcript;
+    transcript = prompt.text;
+    void copyOut(prompt.text);
+    status = "Loaded — copied";
+  }
+
+  // Save-in-the-moment: an inline name row prefilled from the transcript.
+  let saveOpen = $state(false);
+  let saveName = $state("");
+  let saveError = $state("");
+
+  function openSave() {
+    saveName = suggestPromptName(transcript);
+    saveError = "";
+    saveOpen = true;
+  }
+
+  function cancelSave() {
+    saveOpen = false;
+    saveName = "";
+    saveError = "";
+  }
+
+  function confirmSave() {
+    const res = sanitizeSavedPrompt(
+      { name: saveName, text: transcript },
+      settings.savedPrompts ?? [],
+    );
+    if (!res.ok) {
+      saveError = res.error;
+      return;
+    }
+    settings.savedPrompts = [...(settings.savedPrompts ?? []), res.prompt];
+    persist();
+    cancelSave();
+    status = "Saved for next time";
+  }
+
+  // Add / edit / delete in the settings sheet, same core validation.
+  let promptFormOpen = $state(false);
+  let promptEditingId: string | null = $state(null);
+  let promptDraftName = $state("");
+  let promptDraftText = $state("");
+  let promptError = $state("");
+
+  function startNewPrompt() {
+    promptEditingId = null;
+    promptDraftName = "";
+    promptDraftText = "";
+    promptError = "";
+    promptFormOpen = true;
+  }
+
+  function startEditPrompt(p: SavedPrompt) {
+    promptEditingId = p.id;
+    promptDraftName = p.name;
+    promptDraftText = p.text;
+    promptError = "";
+    promptFormOpen = true;
+  }
+
+  function cancelPromptForm() {
+    promptFormOpen = false;
+    promptEditingId = null;
+    promptDraftName = "";
+    promptDraftText = "";
+    promptError = "";
+  }
+
+  function savePrompt() {
+    const res = sanitizeSavedPrompt(
+      { id: promptEditingId ?? undefined, name: promptDraftName, text: promptDraftText },
+      settings.savedPrompts ?? [],
+    );
+    if (!res.ok) {
+      promptError = res.error;
+      return;
+    }
+    const list = (settings.savedPrompts ?? []).slice();
+    const idx = list.findIndex((p) => p.id === res.prompt.id);
+    if (idx >= 0) list[idx] = res.prompt;
+    else list.push(res.prompt);
+    settings.savedPrompts = list;
+    persist();
+    cancelPromptForm();
+  }
+
+  function deletePrompt(p: SavedPrompt) {
+    settings.savedPrompts = (settings.savedPrompts ?? []).filter(
+      (x) => x.id !== p.id,
+    );
+    if (promptEditingId === p.id) cancelPromptForm();
+    persist();
+  }
 </script>
 
 <main
@@ -430,6 +536,26 @@
       <b class="block text-ink">Add your Cloudflare keys to start</b>
       This device needs a speech engine — tap to set it up (free tier, ~2 minutes).
     </button>
+  {/if}
+
+  <!-- saved-prompts quick strip: one horizontally scrollable row of chips -->
+  {#if settings.savedPrompts?.length}
+    <div class="shrink-0">
+      <span class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-grey">Saved</span>
+      <div class="saved-strip flex flex-nowrap gap-2 overflow-x-auto">
+        {#each settings.savedPrompts as prompt (prompt.id)}
+          <button
+            class="shrink-0 rounded-full bg-panel px-3 py-1 text-[12px] font-semibold text-grey transition-transform active:scale-95"
+            disabled={listening || !!running}
+            style={listening || !!running ? "opacity:.45" : ""}
+            title={prompt.text}
+            onclick={() => usePrompt(prompt)}
+          >
+            {prompt.name}
+          </button>
+        {/each}
+      </div>
+    </div>
   {/if}
 
   <!-- transcript -->
@@ -524,9 +650,37 @@
     </div>
   </div>
 
+  <!-- save-in-the-moment: inline name row above the bottom controls -->
+  {#if saveOpen}
+    <div class="shrink-0">
+      <div class="flex gap-2">
+        <input
+          class="min-w-0 flex-1 rounded-xl border border-line bg-face px-3 py-2.5 text-[16px]"
+          placeholder="Name this prompt…"
+          maxlength={SAVED_PROMPT_LIMITS.maxName}
+          bind:value={saveName}
+          onkeydown={(e) => e.key === "Enter" && confirmSave()}
+        />
+        <button class="pillbtn pillbtn-dark shrink-0" onclick={confirmSave}>Save</button>
+        <button class="pillbtn shrink-0" onclick={cancelSave}>✕</button>
+      </div>
+      {#if saveError}
+        <p class="mt-1.5 text-[12.5px] font-semibold text-accent">{saveError}</p>
+      {/if}
+    </div>
+  {/if}
+
   <!-- actions -->
   <div class="flex shrink-0 items-center gap-2.5">
     <button class="pillbtn shrink-0" onclick={clearAll}>Clear</button>
+    <button
+      class="pillbtn shrink-0"
+      onclick={openSave}
+      disabled={!transcript.trim()}
+      style={!transcript.trim() ? "opacity:.45" : ""}
+    >
+      Save
+    </button>
     <button
       class="pillbtn pillbtn-dark flex-1 py-3 text-[15px]"
       onclick={() => copyOut(transcript, true)}
@@ -783,6 +937,86 @@
         {/if}
       </section>
 
+      <!-- Saved prompts: reusable snippets loaded from the quick strip -->
+      <section class="mb-4 rounded-[20px] bg-screen px-4 py-3">
+        <h3 class="mb-1 text-[12px] font-bold uppercase tracking-wider text-grey">Saved prompts</h3>
+        <p class="mb-2 text-[12.5px] text-grey">
+          Snippets you reuse — tap one from the Saved strip to load and copy it.
+        </p>
+
+        <!-- list -->
+        <div class="py-1">
+          {#each settings.savedPrompts ?? [] as prompt (prompt.id)}
+            <div class="flex items-center gap-2 border-b border-line py-2.5 last:border-b-0">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-semibold">{prompt.name}</span>
+                <span class="mt-0.5 block truncate text-[12px] text-grey">{prompt.text}</span>
+              </span>
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-lg bg-face text-[12px] text-grey shadow-sm active:scale-95"
+                  aria-label={"Edit " + prompt.name}
+                  onclick={() => startEditPrompt(prompt)}
+                >✎</button>
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-lg bg-panel text-[12px] text-grey shadow-sm active:scale-95"
+                  aria-label={"Delete " + prompt.name}
+                  onclick={() => deletePrompt(prompt)}
+                >✕</button>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- add / edit prompt -->
+        {#if promptFormOpen}
+          <div class="mt-2 rounded-[16px] bg-face p-3 shadow-sm">
+            <label class="block">
+              <span class="text-[12.5px] font-semibold">Name</span>
+              <input
+                class="mt-1 w-full rounded-xl border border-line bg-screen px-3 py-2 text-[16px]"
+                placeholder="e.g. Standup update"
+                maxlength={SAVED_PROMPT_LIMITS.maxName}
+                bind:value={promptDraftName}
+              />
+            </label>
+            <label class="mt-2 block">
+              <span class="flex items-center justify-between text-[12.5px] font-semibold">
+                <span>Text</span>
+                <span class="font-normal text-lite">{promptDraftText.length}/{SAVED_PROMPT_LIMITS.maxText}</span>
+              </span>
+              <textarea
+                class="mt-1 h-24 w-full resize-none rounded-xl border border-line bg-screen px-3 py-2 text-[16px]"
+                placeholder="The snippet to reuse."
+                maxlength={SAVED_PROMPT_LIMITS.maxText}
+                bind:value={promptDraftText}
+              ></textarea>
+            </label>
+            {#if promptError}
+              <p class="mt-1.5 text-[12.5px] font-semibold text-accent">{promptError}</p>
+            {/if}
+            <div class="mt-2.5 flex gap-2">
+              <button class="pillbtn pillbtn-dark flex-1" onclick={savePrompt}>
+                {promptEditingId ? "Save" : "Add prompt"}
+              </button>
+              <button class="pillbtn" onclick={cancelPromptForm}>Cancel</button>
+            </div>
+          </div>
+        {:else}
+          <button
+            class="mt-2 w-full rounded-xl border border-dashed border-line bg-face py-2.5 text-[13px] font-semibold text-grey active:scale-[0.99]"
+            disabled={(settings.savedPrompts ?? []).length >= SAVED_PROMPT_LIMITS.maxCount}
+            style={(settings.savedPrompts ?? []).length >= SAVED_PROMPT_LIMITS.maxCount ? "opacity:.45" : ""}
+            onclick={startNewPrompt}
+          >
+            ＋ Add prompt
+            <span class="font-normal text-lite">
+              ({(settings.savedPrompts ?? []).length}/{SAVED_PROMPT_LIMITS.maxCount})
+            </span>
+          </button>
+        {/if}
+      </section>
+
       <p class="px-1 text-center text-[12px] leading-relaxed text-lite">
         Add to your home screen for an app-like experience. Nothing is stored on
         any server — transcripts and keys stay on this device.
@@ -792,6 +1026,13 @@
 {/if}
 
 <style>
+  /* Saved strip: a single scrollable row, no visible scrollbar. */
+  .saved-strip {
+    scrollbar-width: none;
+  }
+  .saved-strip::-webkit-scrollbar {
+    display: none;
+  }
   .orb {
     position: absolute;
     inset: 12px;

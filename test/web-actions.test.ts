@@ -41,4 +41,17 @@ describe("web app AI actions wiring", () => {
     expect(source).toContain("rec-dot");
     expect(source).toMatch(/prefers-reduced-motion[\s\S]*tick-ring/);
   });
+
+  it("wires saved prompts through the shared core, not a local reimplementation", () => {
+    // The web app must import the shared validation/suggestion helpers rather
+    // than forking its own copy, and drive the strip + settings sheet off
+    // settings.savedPrompts.
+    expect(source).toMatch(
+      /import\s*\{[^}]*\bsanitizeSavedPrompt\b[^}]*\}\s*from\s*["'][^"']*shared\/prompts["']/s,
+    );
+    expect(source).toContain("suggestPromptName");
+    expect(source).toContain("settings.savedPrompts");
+    // Chips must be disabled while listening or while an AI action is running.
+    expect(source).toMatch(/disabled=\{listening\s*\|\|\s*!!running\}/);
+  });
 });

@@ -7,7 +7,13 @@
 
   import { startDictation, type DictationSession } from "../../src/pipeline";
   import { getSettings, saveSettings } from "../../src/shared/settings";
-  import { DEFAULT_SETTINGS, type Settings, type ToneId } from "../../src/shared/types";
+  import {
+    DEFAULT_SETTINGS,
+    type SavedPrompt,
+    type Settings,
+    type ToneId,
+  } from "../../src/shared/types";
+  import { sanitizeSavedPrompt, suggestPromptName } from "../../src/shared/prompts";
   import {
     TEXT_ACTIONS,
     TONES,
@@ -213,6 +219,8 @@
     previous = null;
     askOpen = false;
     question = "";
+    saveOpen = false;
+    saveName = "";
     pendingAction = null;
   }
 
@@ -310,6 +318,49 @@
     void copyToClipboard(transcriptText);
   }
 
+  // ---- Saved prompts (reusable snippets) ----
+  // A saved snippet drops into the transcript in one tap, stashing whatever was
+  // there into the same "previous" slot Undo uses, and lands on the clipboard.
+  // Chips are gated like the AI chips: idle only, never mid-recording/action.
+  const savedUsable = $derived(!listening && !running);
+
+  function usePrompt(prompt: SavedPrompt) {
+    if (!savedUsable) return;
+    previous = transcriptText;
+    transcriptText = prompt.text;
+    void copyToClipboard(prompt.text);
+  }
+
+  // The inline "name it" row, mirroring the askOpen interaction: prefilled from
+  // the text, confirm runs the shared validator, error shows on the clip line.
+  let saveOpen = $state(false);
+  let saveName = $state("");
+
+  function openSave() {
+    if (!transcriptText.trim()) return;
+    saveName = suggestPromptName(transcriptText);
+    saveOpen = true;
+  }
+
+  async function confirmSave() {
+    const result = sanitizeSavedPrompt(
+      { name: saveName, text: transcriptText },
+      settings.savedPrompts,
+    );
+    if (!result.ok) {
+      setClip(result.error, "err");
+      return;
+    }
+    settings = {
+      ...settings,
+      savedPrompts: [...(settings.savedPrompts ?? []), result.prompt],
+    };
+    if (hasChrome) await saveSettings($state.snapshot(settings));
+    saveOpen = false;
+    saveName = "";
+    setClip("Saved — tap it in the Saved row anytime", "ok");
+  }
+
   // manual edits re-copy after a beat
   let editTimer: ReturnType<typeof setTimeout> | undefined;
   function onEdit() {
@@ -383,6 +434,24 @@
     </div>
   </div>
 
+  <!-- Saved prompts: one-tap snippets, shown only when the library has any. -->
+  {#if settings.savedPrompts?.length}
+    <div class="flex shrink-0 items-center gap-2">
+      <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-grey">Saved</span>
+      <div class="chips-row flex gap-1.5 overflow-x-auto">
+        {#each settings.savedPrompts as prompt (prompt.id)}
+          <button
+            class="shrink-0 rounded-lg bg-panel px-2 py-0.5 text-[11px] font-semibold text-grey transition-transform active:scale-95"
+            disabled={!savedUsable}
+            style={!savedUsable ? "opacity:.45" : ""}
+            title={prompt.text}
+            onclick={() => usePrompt(prompt)}
+          >{prompt.name}</button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   <div class="flex min-h-0 flex-1 flex-col rounded-[22px] bg-screen px-3.5 pb-3 pt-3.5 shadow-sm">
     <h2 class="mb-2 shrink-0 text-[13px] font-bold uppercase tracking-wider text-grey">
       Transcript
@@ -420,6 +489,24 @@
           class="pillbtn shrink-0"
           aria-label="Close question"
           onclick={() => { askOpen = false; question = ""; }}
+        >✕</button>
+      </div>
+    {/if}
+
+    {#if saveOpen}
+      <div class="mb-2 flex gap-2">
+        <input
+          class="min-w-0 flex-1 rounded-xl border border-line bg-face px-3 py-2 text-sm outline-none placeholder:text-lite"
+          placeholder="Name this prompt…"
+          maxlength="24"
+          bind:value={saveName}
+          onkeydown={(e) => e.key === "Enter" && confirmSave()}
+        />
+        <button class="pillbtn-dark pillbtn shrink-0" onclick={confirmSave}>Save</button>
+        <button
+          class="pillbtn shrink-0"
+          aria-label="Close save"
+          onclick={() => { saveOpen = false; saveName = ""; }}
         >✕</button>
       </div>
     {/if}
@@ -480,6 +567,12 @@
     >{clipMessage}</span>
     <span class="flex shrink-0 gap-2">
       <button class="pillbtn" onclick={clearAll}>Clear</button>
+      <button
+        class="pillbtn"
+        disabled={!transcriptText.trim()}
+        style={!transcriptText.trim() ? "opacity:.45" : ""}
+        onclick={openSave}
+      >Save</button>
       <button class="pillbtn" onclick={() => copyToClipboard(transcriptText, false)}>Copy</button>
       <button class="pillbtn-dark pillbtn" onclick={toggle}>
         {listening ? "Stop" : "Start"}
