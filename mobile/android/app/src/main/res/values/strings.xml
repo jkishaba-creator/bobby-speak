@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bobby Speak Keyboard</string>
+    <string name="bobby_ime_name">Bobby Speak Keyboard</string>
+    <string name="bobby_settings_name">Bobby Speak Settings</string>
+    <string name="bobby_microphone_permission_name">Microphone permission</string>
+    <string name="bobby_subtype_name">English (US) - Bobby Speak</string>
+    <string name="bobby_open_settings">Open Bobby Speak settings</string>
+    <string name="bobby_idle_voice">Tap to speak</string>
+    <string name="bobby_transcript_label">TRANSCRIPT</string>
+    <string name="bobby_start_voice">Start voice typing</string>
+    <string name="bobby_stop_voice">Stop voice typing</string>
+    <string name="bobby_setup_voice">Set up voice typing</string>
+    <string name="bobby_voice_unavailable">Voice typing unavailable</string>
+    <string name="bobby_shift">Shift</string>
+    <string name="bobby_backspace">Backspace</string>
+    <string name="bobby_switch_keyboard">Switch keyboard</string>
+    <string name="bobby_space">Space</string>
+    <string name="bobby_enter">Enter</string>
+    <string name="bobby_brand_name">Bobby Speak</string>
+    <string name="bobby_setup_credentials_title">⚙ Setup &amp; Credentials</string>
+    <string name="bobby_connect_cloudflare">Connect Cloudflare Workers AI</string>
+    <string name="bobby_credentials_missing">🔴 Missing Account ID or API token</string>
+    <string name="bobby_credentials_verifying">⏳ Verifying this account can run Workers AI…</string>
+    <string name="bobby_credentials_verified">🟢 Workers AI credentials verified</string>
+    <string name="bobby_credentials_verification_failed">🔴 Verification failed: %1$s</string>
+    <string name="bobby_keyboard_content_title">Keyboard content</string>
+    <string name="bobby_keyboard_content_subtitle">Create, reorder, or hide Types and manage saved prompts.</string>
+    <string name="bobby_saved_label">SAVED</string>
+    <string name="bobby_tone_label">TONE</string>
+    <string name="bobby_type_management_hint">Only the selected Type is black. Hidden Types stay available here.</string>
+    <string name="bobby_no_saved_prompts">No saved prompts yet. Dictate or type text, then tap Save.</string>
+    <string name="bobby_empty_transcript">Your words appear here, cleaned up and already copied.</string>
+    <string name="bobby_microphone_permission_description">Bobby Speak requires Microphone access to record voice dictation.</string>
+    <string name="bobby_grant_microphone_permission">Grant Microphone Permission</string>
+    <string name="bobby_microphone_permission_granted">Microphone permission granted!</string>
+    <string name="bobby_microphone_permission_denied">Microphone permission denied</string>
+
+    <!-- In-keyboard Quick Settings panel -->
+    <string name="bobby_ai_tone_label">AI Polish Tone</string>
+    <string name="bobby_quick_action_label">Quick AI Transform</string>
+    <string name="bobby_saved_prompts_label">Saved prompts</string>
+    <string name="bobby_cloudflare_setup">⚙ All Settings</string>
+    <string name="bobby_done">✓ Done</string>
+</resources>

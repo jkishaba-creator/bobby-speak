@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/bobby_key_pressed">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/bobby_key_utility" />
+            <corners android:radius="@dimen/bobby_key_corner" />
+        </shape>
+    </item>
+</ripple>

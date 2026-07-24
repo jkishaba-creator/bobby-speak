@@ -29,20 +29,20 @@ class PermissionActivity : Activity() {
             setPadding(32, 32, 32, 32)
         }
 
-        val text = TextView(this).apply {
-            text = "Bobby Speak requires Microphone access to record voice dictation."
+        val descriptionText = TextView(this).apply {
+            text = getString(R.string.bobby_microphone_permission_description)
             textSize = 16f
             setPadding(0, 0, 0, 24)
         }
 
         val grantButton = Button(this).apply {
-            text = "Grant Microphone Permission"
+            text = getString(R.string.bobby_grant_microphone_permission)
             setOnClickListener {
                 requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
             }
         }
 
-        layout.addView(text)
+        layout.addView(descriptionText)
         layout.addView(grantButton)
         setContentView(layout)
     }
@@ -51,9 +51,17 @@ class PermissionActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_RECORD_AUDIO) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Microphone permission granted!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(R.string.bobby_microphone_permission_granted),
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
-                Toast.makeText(this, "Microphone permission denied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(R.string.bobby_microphone_permission_denied),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
             finish()
         }

@@ -1,90 +1,108 @@
-# Bobby Speak — Native Android Dictation Keyboard MVP
+# Bobby Speak for Android
 
-Native Android Input Method Service (IME) for **Bobby Speak** (Issue #7).
+Native Android activity and Input Method Service (IME) for using Bobby Speak
+inside any editable field.
 
-Brings voice dictation & AI smart formatting to **any app on Android** (WhatsApp, Gmail, Notes, Twitter, SMS).
+## What is included
 
----
+- Four-row QWERTY keyboard with shift, backspace, editor actions, keyboard
+  switching, and password-field voice protection.
+- Shared native `BobbyOrbView` in the activity and keyboard, including the
+  blurred face, dotted ring, recording marker, level bars, and motion states.
+- Cloudflare Workers AI transcription through Whisper and Type/Tone transforms
+  through the configured text model.
+- Built-in Types: Clean, Summarize, Sharpen, and Ask.
+- Up to 12 editable custom Types, including ordering and visibility controls.
+- Tone selection with action-specific tone rules.
+- Up to 20 saved prompts. The activity can save/load them; the keyboard inserts
+  them into the active input field.
+- Transcript streaming, Clear, Save, Copy, and one-level Undo after a successful
+  transform.
+- Guided IME, microphone, and Cloudflare credential setup.
 
-## Features Implemented (Issue #7)
+Unselected settings and management controls use muted grey surfaces. Black is
+reserved for the selected Type/Tone pills and the enabled primary Copy action.
+Orange is reserved for active recording feedback.
 
-1. **Native IME Scaffolding**:
-   - `BobbyInputMethodService` registered with `BIND_INPUT_METHOD` permission.
-   - `method.xml` defining the `en_US` keyboard subtype.
+## Dictation behavior
 
-2. **16kHz Mono Audio Recording**:
-   - Captures PCM audio at 16kHz mono 16-bit via `AudioRecord`.
-   - Automatically prepends a 44-byte WAV header on stop and Base64 encodes the payload.
+1. Tap the orb to start recording.
+2. Tap again to stop and transcribe.
+3. Bobby resolves the currently selected Type and Tone.
+4. The transformed result is copied in the activity or committed to the active
+   external input field.
+5. If transformation fails after transcription succeeds, Bobby preserves the
+   raw transcript and displays a non-blocking error.
 
-3. **Cloudflare AI Integration**:
-   - **Speech-to-Text**: `POST /ai/run/@cf/openai/whisper-large-v3-turbo` with Base64 WAV payload.
-   - **Smart Formatting**: `POST /ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast` for grammar correction and filler word removal.
-   - **Text Insertion**: Inserts final text directly into cursor via `InputConnection.commitText()`.
+The native Android app intentionally continues to use the existing Cloudflare
+Whisper transport. Chrome shortcut settings, extension output modes, Android
+`SpeechRecognizer`, and Deepgram Flux are outside this Android parity work.
 
-4. **Guided Android Setup (`BobbySettingsActivity`)**:
-   - Shows whether Bobby is enabled, selected, and allowed to use the microphone.
-   - Provides buttons for the Android IME settings and keyboard picker.
-   - Includes a dedicated text field for testing Bobby without editing credentials.
+## Project structure
 
-5. **Workers AI Verification**:
-   - Verifies the supplied account and token by running a tiny request against the same text model used by dictation.
-   - Surfaces Cloudflare API errors instead of reporting them as "no speech."
-
-5. **Permission Handling (`PermissionActivity`)**:
-   - Handles runtime `RECORD_AUDIO` permission prompts for the IME.
-
----
-
-## Project Structure
-
-```
+```text
 mobile/android/
-├── README.md
-├── build.gradle
-├── settings.gradle
-├── screenshots/
-│   └── keyboard_ui_layout.md
-└── app/
-    ├── build.gradle
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── res/xml/method.xml
-        └── java/com/bobbyspeak/keyboard/
-            ├── BobbyInputMethodService.kt
-            ├── BobbySettingsActivity.kt
-            └── PermissionActivity.kt
+├── app/src/main/
+│   ├── AndroidManifest.xml
+│   ├── java/com/bobbyspeak/keyboard/
+│   │   ├── BobbyContentModels.kt
+│   │   ├── BobbyContentPreferences.kt
+│   │   ├── BobbyDictationTransform.kt
+│   │   ├── BobbyInputMethodService.kt
+│   │   ├── BobbyKeyboardController.kt
+│   │   ├── BobbyOrbView.kt
+│   │   ├── BobbySettingsActivity.kt
+│   │   ├── BobbyTranscriptHistory.kt
+│   │   ├── BobbyWavEncoder.kt
+│   │   ├── CloudflareClient.kt
+│   │   └── PermissionActivity.kt
+│   └── res/
+├── app/src/test/
+├── scripts/verify-emulator.sh
+└── screenshots/
 ```
 
----
+## Build and test
 
-## Build and Run on the Pixel Emulator
+From `mobile/android`:
 
-1. Start the Pixel emulator and open `mobile/android` in Android Studio, or build from WSL:
+```powershell
+java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain clean :app:testDebugUnitTest :app:assembleDebug --no-daemon
+```
 
-   ```bash
-   ./gradlew :app:assembleDebug
-   ```
+Run Android lint separately:
 
-   The wrapper detects a Windows Android SDK when it is run from WSL and uses the Windows JDK automatically.
+```powershell
+java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain :app:lintDebug --no-daemon
+```
 
-2. Install and open **Bobby Speak Settings**.
-3. Follow the three setup buttons in order:
-   - **Enable Bobby Speak** opens Android's keyboard settings.
-   - **Choose Bobby Speak** opens Android's input-method picker.
-   - **Allow Microphone** requests recording permission.
-4. Enter the Cloudflare Account ID and the raw API token (do not include the word `Bearer`), then tap **Save Credentials** and **Test & Verify Connection**.
-5. Tap **Show Bobby Keyboard**, then use **TAP ME TO DICTATE**.
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Automated Emulator Proof
+## Emulator verification
 
-With exactly one emulator running, execute:
+Start exactly one Pixel 7 emulator and run:
 
 ```bash
 ./scripts/verify-emulator.sh
 ```
 
-The script builds and installs the APK, collapses the Android notification shade, proves Bobby's settings Activity is resumed, enables and selects the Bobby IME, focuses the dedicated test field, and asserts that Bobby owns a visible input window. Its proof screenshot is written to `build/reports/bobby-emulator/bobby-ime-proof.png` only after those assertions pass.
+The script builds and installs the APK, selects Bobby as the active IME, opens
+an editable field in an external Android app, and verifies that Bobby's QWERTY
+keys commit `bobby speak` through that app's active `InputConnection`.
 
-Set `BOBBY_ADB` or `BOBBY_DEVICE_SERIAL` when ADB is elsewhere or more than one emulator is connected. The script expects the `Pixel_7` AVD by default; set `BOBBY_EXPECTED_AVD` when intentionally testing another device profile.
+Before a release, also manually verify:
 
-Never keep Cloudflare credentials in `Cloudflare.md` or commit them to Git. Enter them only in the app, and rotate any token that has previously been stored in plaintext.
+- activity idle and recording states;
+- keyboard idle, recording, and quick-settings states;
+- selected Type/Tone dictation;
+- one custom Type;
+- saved-prompt insertion;
+- password-field voice protection;
+- raw-text fallback with a visible transform error;
+- settings scrolling and management controls.
+
+## Credentials
+
+Enter the Cloudflare Account ID and raw API token only through the app. Do not
+include the word `Bearer`. Credential scratch files are ignored by Git and must
+never be staged or committed.

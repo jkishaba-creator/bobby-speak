@@ -93,6 +93,42 @@ class CloudflareClientTest {
         assertTrue(systemPrompt.contains("Remove filler words"))
     }
 
+    @Test
+    fun `run action appends tone only to toneable actions`() {
+        val transport = FakeTransport(
+            CloudflareHttpResponse(
+                200,
+                """{"success":true,"result":{"response":"Done"},"errors":[],"messages":[]}"""
+            )
+        )
+        val client = CloudflareClient(transport)
+        val credentials = CloudflareCredentials.fromRaw("account-id", "token")
+
+        client.runAction(
+            credentials,
+            "hello",
+            BobbyActionCatalog.sharpen,
+            ImeTone.CONFIDENT
+        )
+        val sharpenPrompt = transport.lastBody
+            .getJSONArray("messages")
+            .getJSONObject(0)
+            .getString("content")
+        assertTrue(sharpenPrompt.contains("confident tone"))
+
+        client.runAction(
+            credentials,
+            "hello",
+            BobbyActionCatalog.summarize,
+            ImeTone.CONFIDENT
+        )
+        val summaryPrompt = transport.lastBody
+            .getJSONArray("messages")
+            .getJSONObject(0)
+            .getString("content")
+        assertTrue(!summaryPrompt.contains("confident tone"))
+    }
+
     private class FakeTransport(
         private val response: CloudflareHttpResponse
     ) : CloudflareTransport {

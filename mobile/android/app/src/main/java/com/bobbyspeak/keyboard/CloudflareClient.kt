@@ -116,19 +116,51 @@ class CloudflareClient(
 
     fun polish(
         credentials: CloudflareCredentials,
-        rawText: String
+        text: String,
+        tone: String = DEFAULT_TONE_ID
+    ): CloudflareResult<String> =
+        runTextRequest(credentials, text, systemPromptForTone(tone))
+
+    fun runAction(
+        credentials: CloudflareCredentials,
+        text: String,
+        action: String
+    ): CloudflareResult<String> {
+        val resolved = BobbyActionCatalog.builtIns.firstOrNull {
+            it.id.equals(action, ignoreCase = true) ||
+                it.label.equals(action, ignoreCase = true)
+        } ?: BobbyActionCatalog.clean
+        return runAction(credentials, text, resolved, ImeTone.NONE)
+    }
+
+    fun runAction(
+        credentials: CloudflareCredentials,
+        text: String,
+        action: BobbyTextAction,
+        tone: ImeTone
+    ): CloudflareResult<String> =
+        runTextRequest(
+            credentials,
+            text,
+            BobbyActionCatalog.systemPrompt(action, tone)
+        )
+
+    private fun runTextRequest(
+        credentials: CloudflareCredentials,
+        text: String,
+        systemPrompt: String
     ): CloudflareResult<String> {
         val messages = JSONArray().apply {
             put(
                 JSONObject().apply {
                     put("role", "system")
-                    put("content", SYSTEM_PROMPT)
+                    put("content", systemPrompt)
                 }
             )
             put(
                 JSONObject().apply {
                     put("role", "user")
-                    put("content", rawText)
+                    put("content", text)
                 }
             )
         }
@@ -148,6 +180,13 @@ class CloudflareClient(
             }
             is CloudflareResult.Failure -> result
         }
+    }
+
+    private fun systemPromptForTone(tone: String): String = when (tone) {
+        TONE_PROFESSIONAL_ID -> TONE_PROFESSIONAL_PROMPT
+        TONE_DIRECT_ID -> TONE_DIRECT_PROMPT
+        TONE_CONFIDENT_ID -> TONE_CONFIDENT_PROMPT
+        else -> TONE_NONE_PROMPT
     }
 
     private fun runModel(
@@ -249,11 +288,31 @@ class CloudflareClient(
     companion object {
         private const val WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo"
         private const val TEXT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
-        private const val SYSTEM_PROMPT =
-            "You correct dictated text. Fix grammar, punctuation, capitalization, and sentence boundaries " +
-                "so it reads like clean writing. Remove filler words and false starts when that does not " +
-                "change the meaning. Do not add, answer, or comment on the content. Reply with ONLY the " +
-                "corrected text, no preamble or quotes."
+
+        const val DEFAULT_TONE_ID = "None"
+
+        const val TONE_PROFESSIONAL_ID = "Professional"
+        const val TONE_DIRECT_ID = "Direct"
+        const val TONE_CONFIDENT_ID = "Confident"
+
+        private const val TONE_NONE_PROMPT =
+            "Remove filler words, fix grammar and punctuation, and remove voice stutters while " +
+                "keeping natural phrasing."
+        private const val TONE_PROFESSIONAL_PROMPT =
+            "Rewrite the text to be clear, articulate, polished, and professional while " +
+                "preserving the core meaning."
+        private const val TONE_DIRECT_PROMPT =
+            "Rewrite the text to be concise, direct, and to the point without filler or " +
+                "pleasantries."
+        private const val TONE_CONFIDENT_PROMPT =
+            "Rewrite the text to sound confident, decisive, and persuasive."
+
+        private const val ACTION_SUMMARIZE_PROMPT =
+            "Summarize the text in 1-2 key bullet points or concise sentences."
+        private const val ACTION_SHARPEN_PROMPT =
+            "Sharpen the prose to be punchy, clear, and impactful."
+        private const val ACTION_ASK_PROMPT =
+            "Answer or complete the prompt concisely."
     }
 }
 

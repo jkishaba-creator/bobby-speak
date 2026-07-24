@@ -54,4 +54,44 @@ class BobbySetupStateTest {
             BobbySetupState(true, true, true, false, false).nextStep
         )
     }
+
+    @Test
+    fun `saving unchanged credentials preserves successful verification`() {
+        val credentials = CloudflareCredentials("account", "token")
+
+        assertTrue(
+            BobbyCredentialPreferences.verificationAfterSave(
+                savedCredentials = credentials,
+                submittedCredentials = credentials,
+                wasVerified = true
+            )
+        )
+    }
+
+    @Test
+    fun `saving changed credentials requires verification again`() {
+        assertFalse(
+            BobbyCredentialPreferences.verificationAfterSave(
+                savedCredentials = CloudflareCredentials("account", "old-token"),
+                submittedCredentials = CloudflareCredentials("account", "new-token"),
+                wasVerified = true
+            )
+        )
+    }
+
+    @Test
+    fun `credential preference changes refresh the visible voice setup state`() {
+        assertTrue(
+            BobbyCredentialPreferences.affectsVoiceSetup(
+                BobbyCredentialPreferences.CLOUDFLARE_VERIFIED
+            )
+        )
+        assertTrue(
+            BobbyCredentialPreferences.affectsVoiceSetup(
+                BobbyCredentialPreferences.CLOUDFLARE_ACCOUNT_ID
+            )
+        )
+        assertFalse(BobbyCredentialPreferences.affectsVoiceSetup("unrelated"))
+    }
+
 }

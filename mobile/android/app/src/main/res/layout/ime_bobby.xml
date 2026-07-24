@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/bobby_keyboard_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bobby_keyboard_surface"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/bobby_keyboard_edge"
+    android:paddingTop="4dp"
+    android:paddingEnd="@dimen/bobby_keyboard_edge"
+    android:paddingBottom="@dimen/bobby_keyboard_bottom"
+    tools:ignore="Overdraw">
+
+    <!--
+        TRANSCRIPT card (Air OS style): white rounded card that frames the live
+        streaming subtitles. The compact shared Orb stays in the card, matching
+        the working outside-app layout while using the exact web Orb renderer.
+    -->
+    <LinearLayout
+        android:id="@+id/bobby_transcript_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/bobby_toolbar_gap"
+        android:background="@drawable/bobby_card_background"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:padding="@dimen/bobby_panel_padding">
+
+        <!-- Header row: transcript controls on the left, compact Orb module on the right. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="76dp"
+            android:layout_marginBottom="@dimen/bobby_toolbar_gap"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:accessibilityLiveRegion="polite"
+                android:letterSpacing="0.08"
+                android:text="@string/bobby_transcript_label"
+                android:textAllCaps="true"
+                android:textColor="#979AA6"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/bobby_progress"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="@dimen/bobby_progress_size"
+                android:layout_height="@dimen/bobby_progress_size"
+                android:layout_marginEnd="@dimen/bobby_toolbar_gap"
+                android:indeterminateTint="@color/bobby_primary"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/bobby_settings"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bobby_toolbar_button_background"
+                android:contentDescription="@string/bobby_open_settings"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_bobby_settings"
+                android:tint="@color/bobby_text_secondary" />
+
+            <LinearLayout
+                android:layout_width="72dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:id="@+id/bobby_orb_container"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
+
+                    <com.bobbyspeak.keyboard.BobbyOrbView
+                        android:id="@+id/bobby_mic"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:clickable="true"
+                        android:contentDescription="@string/bobby_start_voice"
+                        android:focusable="true" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:id="@+id/bobby_status_dots"
+                    android:layout_width="wrap_content"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center_horizontal|bottom"
+                    android:orientation="horizontal" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/bobby_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite"
+            android:layout_marginBottom="4dp"
+            android:text="@string/bobby_idle_voice"
+            android:textColor="@color/bobby_text_secondary"
+            android:textSize="14sp" />
+
+        <!-- Body: live streaming subtitles / transcript -->
+        <TextView
+            android:id="@+id/bobby_transcript_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite"
+            android:ellipsize="end"
+            android:gravity="top"
+            android:maxLines="3"
+            android:minLines="1"
+            android:textColor="@color/bobby_text_secondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!--
+        In-keyboard Quick Settings panel (Air OS card style).
+        Visibility=gone by default; controller flips it to VISIBLE and hides the
+        QWERTY rows below when the user taps the ⚙ toolbar button.
+    -->
+    <LinearLayout
+        android:id="@+id/bobby_settings_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/bobby_panel_margin_bottom"
+        android:background="@drawable/bobby_card_background"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:padding="@dimen/bobby_panel_padding"
+        android:visibility="gone"
+        tools:visibility="gone">
+
+        <!-- Section 1: AI Polish Tone -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/bobby_ai_tone_label"
+            android:textColor="@color/bobby_text_secondary"
+            android:textSize="@dimen/bobby_panel_label_text" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/bobby_tone_pills_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- Section 2: Quick AI Transform -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/bobby_panel_section_gap"
+            android:text="@string/bobby_quick_action_label"
+            android:textColor="@color/bobby_text_secondary"
+            android:textSize="@dimen/bobby_panel_label_text" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/bobby_action_pills_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/bobby_saved_prompts_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/bobby_panel_section_gap"
+            android:text="@string/bobby_saved_prompts_label"
+            android:textColor="@color/bobby_text_secondary"
+            android:textSize="@dimen/bobby_panel_label_text"
+            android:visibility="gone" />
+
+        <HorizontalScrollView
+            android:id="@+id/bobby_saved_prompts_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/bobby_saved_prompts_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- Section 3: Action Buttons row (Dual Balanced Pills) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/bobby_panel_section_gap"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/bobby_open_api_setup"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/bobby_panel_button_height"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bobby_button_muted"
+                android:elevation="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:stateListAnimator="@null"
+                android:text="@string/bobby_cloudflare_setup"
+                android:textAllCaps="false"
+                android:textColor="@color/bobby_text_secondary"
+                android:textSize="13sp"
+                tools:ignore="ButtonStyle" />
+
+            <Button
+                android:id="@+id/bobby_close_panel"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/bobby_panel_button_height"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bobby_button_muted"
+                android:elevation="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:stateListAnimator="@null"
+                android:text="@string/bobby_done"
+                android:textAllCaps="false"
+                android:textColor="@color/bobby_text_secondary"
+                android:textSize="13sp"
+                tools:ignore="ButtonStyle" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/bobby_row_q"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bobby_key_row_height"
+        android:gravity="center"
+        android:orientation="horizontal" />
+
+    <LinearLayout
+        android:id="@+id/bobby_row_a"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bobby_key_row_height"
+        android:gravity="center"
+        android:orientation="horizontal" />
+
+    <LinearLayout
+        android:id="@+id/bobby_row_z"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bobby_key_row_height"
+        android:gravity="center"
+        android:orientation="horizontal" />
+
+    <LinearLayout
+        android:id="@+id/bobby_row_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bobby_bottom_row_height"
+        android:gravity="center"
+        android:orientation="horizontal" />
+</LinearLayout>
