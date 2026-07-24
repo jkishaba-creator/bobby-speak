@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Air OS pillbtn: white glossy face, no border, pill radius (shadow via Button elevation) -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/bobby_toolbar_pressed">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/bobby_card_face" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+</ripple>

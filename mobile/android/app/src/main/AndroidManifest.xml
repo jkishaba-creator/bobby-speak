@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/bobby_app_icon"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/bobby_app_icon"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault"
+        tools:targetApi="s">
+
+        <!-- Dictation Input Method Service -->
+        <service
+            android:name=".BobbyInputMethodService"
+            android:label="@string/bobby_ime_name"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <!-- Cloudflare Credentials Settings Activity -->
+        <activity
+            android:name=".BobbySettingsActivity"
+            android:label="@string/bobby_settings_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Runtime Mic Permission Request Activity -->
+        <activity
+            android:name=".PermissionActivity"
+            android:label="@string/bobby_microphone_permission_name"
+            android:theme="@android:style/Theme.DeviceDefault.Dialog"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="bobby_keyboard_edge">10dp</dimen>
+    <dimen name="bobby_keyboard_bottom">6dp</dimen>
+    <dimen name="bobby_toolbar_gap">6dp</dimen>
+    <dimen name="bobby_progress_size">20dp</dimen>
+    <dimen name="bobby_key_row_height">52dp</dimen>
+    <dimen name="bobby_bottom_row_height">56dp</dimen>
+    <dimen name="bobby_key_corner">7dp</dimen>
+
+    <!-- In-keyboard Quick Settings panel -->
+    <dimen name="bobby_panel_padding">14dp</dimen>
+    <dimen name="bobby_panel_margin_bottom">6dp</dimen>
+    <dimen name="bobby_panel_section_gap">10dp</dimen>
+    <dimen name="bobby_panel_label_text">13sp</dimen>
+    <dimen name="bobby_panel_button_height">44dp</dimen>
+</resources>

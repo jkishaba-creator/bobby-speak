@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Gradle wrapper script for Bobby Speak Android Keyboard
+export GRADLE_OPTS="-Xmx2048m -Dfile.encoding=UTF-8"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "Bobby Speak Android Keyboard — Gradle Wrapper"
+echo "Project directory: ${APP_DIR}"
+
+# A Windows Android SDK contains .exe/.bat build tools, so a Linux JVM cannot
+# use it directly. When this project is run from WSL with a Windows sdk.dir,
+# launch the wrapper with the Windows JDK from PATH instead.
+SDK_DIR="$(sed -n 's/^sdk\.dir=//p' "${APP_DIR}/local.properties" 2>/dev/null | head -n 1)"
+if [[ "${SDK_DIR}" =~ ^[A-Za-z]:[/\\] ]] && command -v cmd.exe >/dev/null && command -v wslpath >/dev/null; then
+    WINDOWS_JAVA="$(cmd.exe /c where java.exe 2>/dev/null | tr -d '\r' | head -n 1)"
+    if [[ -z "${WINDOWS_JAVA}" ]]; then
+        echo "Unable to find java.exe on the Windows PATH." >&2
+        exit 1
+    fi
+
+    WINDOWS_JAVA_WSL="$(wslpath -u "${WINDOWS_JAVA}")"
+    WRAPPER_JAR_WINDOWS="$(wslpath -w "${APP_DIR}/gradle/wrapper/gradle-wrapper.jar")"
+    exec "${WINDOWS_JAVA_WSL}" -classpath "${WRAPPER_JAR_WINDOWS}" org.gradle.wrapper.GradleWrapperMain "$@"
+fi
+
+exec java -classpath "${APP_DIR}/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"

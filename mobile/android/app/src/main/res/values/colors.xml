@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Air OS brand colors (bobby-speak.pages.dev) -->
+    <color name="bobby_keyboard_surface">#C6C9D4</color>
+    <color name="bobby_key_surface">#FFFFFF</color>
+    <color name="bobby_key_utility">#EFEFF4</color>
+    <color name="bobby_key_pressed">#DFE1E9</color>
+    <color name="bobby_text_primary">#17171B</color>
+    <color name="bobby_text_secondary">#979AA6</color>
+    <color name="bobby_primary">#E8620A</color>
+    <color name="bobby_recording">#E8620A</color>
+    <color name="bobby_success">#10B981</color>
+    <color name="bobby_warning">#F59E0B</color>
+    <color name="bobby_error">#EF4444</color>
+    <color name="bobby_disabled">#9DA0AC</color>
+    <color name="bobby_toolbar_pressed">#15000000</color>
+    <!-- Air OS settings screen (bobby-speak.pages.dev) — stage grey background #C6C9D4 -->
+    <color name="bobby_settings_canvas">#C6C9D4</color>
+    <color name="bobby_copy_disabled_bg">#767880</color>
+    <color name="bobby_settings_text">#17171B</color>
+    <color name="bobby_settings_text_muted">#979AA6</color>
+    <color name="bobby_settings_success">#10B981</color>
+    <color name="bobby_settings_warning">#F59E0B</color>
+    <color name="bobby_settings_error">#EF4444</color>
+    <color name="bobby_card_face">#FFFFFF</color>
+    <color name="bobby_card_line">#DFE1E9</color>
+    <color name="bobby_pill_primary_bg">#17171B</color>
+    <color name="bobby_pill_primary_text">#F7F7FA</color>
+    <color name="bobby_ripple_on_primary">#33FFFFFF</color>
+</resources>

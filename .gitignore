@@ -4,3 +4,12 @@ node_modules/
 .DS_Store
 *.log
 stats.html
+
+# Android Studio & Gradle local files
+.idea/
+*.iml
+mobile/android/.gradle/
+mobile/android/.idea/
+mobile/android/local.properties
+mobile/android/build/
+mobile/android/app/build/

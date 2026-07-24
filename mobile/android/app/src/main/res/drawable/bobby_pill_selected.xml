@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Air OS pill (selected): ink face, full pill radius. Mirrors pillbtn-dark on web. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/bobby_ripple_on_primary">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/bobby_pill_primary_bg" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+</ripple>
